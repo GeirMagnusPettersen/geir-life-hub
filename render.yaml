@@ -1,14 +1,22 @@
 # Render.com blueprint for Geir Life Hub.
 #
-# NOTE: Render requires credit card verification before it will create
-# resources via the Blueprint flow (this one) or its own managed Postgres,
-# even on the free plan. Individually-created Web Services / Static Sites
-# ("New +" -> "Web Service"/"Static Site", not "Blueprint") do NOT require a
-# card. If you want a fully card-free free-tier deploy, follow the manual
-# step-by-step instructions in README.md ("Kom i gang (skyhosting, helt
-# gratis og uten kredittkort)") instead, which creates the two services by
-# hand and uses Neon.tech for Postgres. This file is kept as a reference/
-# shortcut for anyone who doesn't mind verifying a card with Render.
+# NOTE: Render requires credit card verification before it will create a
+# Web Service, even on the $0/month Free compute plan. This was verified
+# live (Nov 2025) for an individually-created service ("New +" ->
+# "Web Service", not Blueprint) on a real account, for BOTH the Docker
+# runtime and the native Python 3 runtime -- the "Add Card" prompt appeared
+# either way as soon as "Deploy web service" was clicked. This contradicts
+# an earlier assumption (recorded in README.md history) that manually-
+# created services bypass the card gate; that assumption was wrong and has
+# been corrected there. Card-free Postgres (Neon.tech) is unaffected --
+# only Render's compute (Web Service / Blueprint) requires the card.
+#
+# The card verification is a $1 USD temporary authorization, not a charge,
+# per Render's own modal copy. If you're fine adding a card for that
+# verification step while staying on the $0/month plan, this Blueprint (or
+# the manual Web Service flow) works fine. If you want to avoid ever
+# entering a card, see README.md's "Lokal utvikling" / Docker Compose
+# section for self-hosting on your own machine/VPS instead.
 #
 # This is an *alternative* to the Docker Compose self-hosting path in
 # docker-compose.yml, for the case where you'd rather have the app built and

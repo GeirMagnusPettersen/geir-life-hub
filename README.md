@@ -85,22 +85,39 @@ ukes-bøtter (snitt vekt, væske/kaffe per dag, symptomtelling). Frontend-
 dashboardet viser dette per bruker, med trendserien i en utvidbar tabell
 (`<details>`).
 
-## Kom i gang (skyhosting, helt gratis og uten kredittkort)
+## Kom i gang (skyhosting)
 
 Docker Compose over er ment for selvhosting på egen maskin/VPS. Hvis du i
-stedet vil ha appen kjørende på en administrert skytjeneste – **helt gratis,
-uten å måtte registrere kredittkort** – er dette den verifiserte fremgangs-
-måten (bekreftet live i Render/Neon sine dashbord):
+stedet vil ha appen kjørende på en administrert skytjeneste, er dette
+fremgangsmåten (bekreftet live i Render/Neon sine dashbord):
 
-> **Viktig oppdagelse:** Renders **Blueprint**-flyt (`render.yaml` under)
-> og Renders egen **Postgres**-provisjonering krever begge kredittkort-
-> verifisering, selv på gratisplanen. Å opprette enkelttjenester manuelt
-> (**New +** → **Web Service** / **Static Site**) krever derimot *ikke*
-> kort. Løsningen er derfor å opprette backend og frontend som separate
-> manuelle tjenester på Render, og bruke [Neon](https://neon.tech) (gratis,
-> uten kort) som ekstern Postgres-database i stedet for Renders egen.
-> `render.yaml` ligger fortsatt i repoet som referanse/dokumentasjon for
-> Blueprint-oppsettet, men krever altså kort hvis du velger den veien.
+> **Viktig oppdagelse (oppdatert, testet live nov. 2025):** Vi antok
+> tidligere at det å opprette enkelttjenester manuelt på Render
+> (**New +** → **Web Service**, ikke Blueprint) unngår kredittkort-kravet
+> som Renders **Blueprint**-flyt (`render.yaml`) og egen **Postgres**-
+> provisjonering har. **Dette viste seg å være feil.** Et faktisk forsøk på
+> å opprette én enkelt Web Service manuelt – testet både med Docker-runtime
+> og med native Python 3-runtime – viste at Render ber om kortverifisering
+> ("Add Card", en midlertidig $1 USD-autorisasjon, ifølge Render selv ikke
+> en reell belastning) idet du trykker **Deploy web service**, uavhengig av
+> hvilken plan (inkludert $0/mnd Free) eller runtime du har valgt. Dette
+> ser ut til å være en konto-/anti-svindel-policy på Render, ikke knyttet
+> til Blueprint vs. manuell opprettelse eller Docker vs. native runtime.
+>
+> [Neon](https://neon.tech) (database) krever fortsatt **ikke** kort og
+> fungerer fint som ekstern Postgres uansett hvilken vei du velger for
+> compute. Andre undersøkte gratisalternativer for compute (Koyeb,
+> PythonAnywhere) har tilsvarende eller verre begrensninger: Koyeb krever
+> også kort ved registrering, og PythonAnywheres gratisnivå tillater ikke
+> utgående nettverkstilkobling til en ekstern Postgres-database som Neon.
+>
+> **Praktisk konklusjon:** et *helt* kortfritt cloud-oppsett for
+> backend-compute har vi ikke funnet en fungerende løsning for per nå. De
+> reelle alternativene er (a) legge inn et kort hos Render for
+> verifiseringssteget og bli på gratisplanen (ingen løpende kostnad så
+> lenge ressursgrensene ikke overskrides), eller (b) kjøre backend/frontend
+> selv via Docker Compose-oppsettet over, på egen maskin/NAS/VPS – som
+> aldri krever kort siden det er din egen maskinvare.
 
 1. Push repoet til GitHub (allerede gjort for `geir-life-hub`).
 2. **Database (Neon, gratis, uten kort):**
@@ -112,7 +129,7 @@ måten (bekreftet live i Render/Neon sine dashbord):
    - Kopier denne – den brukes som `DATABASE_URL` under. Backend normaliserer
      selv `postgres://`/`postgresql://` til `postgresql+psycopg://`, så du
      trenger ikke redigere strengen manuelt.
-3. **Backend (Render Web Service, gratis plan):**
+3. **Backend (Render Web Service, gratis plan – krever kortverifisering, se boks over):**
    - Render-dashbord → **New +** → **Web Service** (ikke Blueprint) → koble
      til GitHub (autoriser Render-appen for repoet) → velg `geir-life-hub`.
    - Velg compute-plan **Free** ($0/mnd).
@@ -152,9 +169,10 @@ har en egen selvhostet KitchenOwl-instans å koble på.
 > Merk: den gratis Render-planen "sover" tjenester etter ca. 15 minutters
 > inaktivitet (første forespørsel etter en pause kan ta 30–60 sekunder), og
 > Neons gratisplan har også en "scale-to-zero"-oppførsel for inaktive
-> databaser (vekkes automatisk ved neste spørring). Ingen av delene krever
-> kort eller koster noe på gratisnivå. Oppgrader til betalte planer hos
-> Render/Neon hvis du vil ha alltid-på drift.
+> databaser (vekkes automatisk ved neste spørring). Ingen av delene koster
+> noe på gratisnivå (Render ber bare om kortet som en midlertidig $1-
+> verifisering, ikke en løpende belastning, se boksen over). Oppgrader til
+> betalte planer hos Render/Neon hvis du vil ha alltid-på drift.
 
 ### Health Connect-sync-kontrakt (forberedelse for Android-companion)
 
