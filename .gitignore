@@ -8,6 +8,10 @@ venv/
 .coverage
 htmlcov/
 
+# Local SQLite databases (e.g. local dev / smoke-test DATABASE_URL)
+*.db
+*.sqlite3
+
 # Node / frontend
 node_modules/
 dist/
