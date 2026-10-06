@@ -169,12 +169,37 @@ kommando for å slette alt igjen (`az group delete`) hvis du vil rydde opp.
 Kostnad holder seg godt innenfor $150/måned-kreditten for et 2-brukers
 hobbyoppsett.
 
-> **Viktig:** Dette scriptet er ikke kjørt eller verifisert av agenten selv,
-> fordi agentens eget `az`-CLI-oppsett i dette miljøet er logget inn på en
-> intern Microsoft-subscription ("MSAI Internal Tools"), ikke din personlige
-> FTE-subscription. Det ville vært upassende å deploye et personlig
-> hobbyprosjekt i en intern Microsoft-subscription, så du må kjøre scriptet
-> selv fra din egen innloggede `az`-sesjon.
+> **Verifisert live:** Scriptet er faktisk kjørt og verifisert, med
+> `az login --use-device-code` mot en personlig FTE-koblet konto (ikke
+> agentens interne Microsoft-subscription). Både backend
+> (`/health` → `{"status":"ok"}`) og frontend (HTTP 200) ble bekreftet
+> nådbare etter kjøring. Noen gotchas ble funnet og fikset underveis, se
+> under hvis du støter på de samme feilene selv:
+> - **Region kan være stengt for nye kunder:** `westeurope` kan feile med
+>   `RequestDisallowedByPolicy` / region restriction på enkelte FTE-
+>   subscriptions. Scriptet bruker `norwayeast` som default av denne grunn –
+>   bytt `$Location` i toppen av scriptet hvis den også er stengt for deg.
+> - **`UnicodeEncodeError`/colorama-krasj:** eldre versjoner av dette
+>   scriptet brukte `az containerapp up --source`, som strømmer ACR-build-
+>   logger gjennom `azure-cli`s colorama-wrapper og kan krasje på ikke-ASCII
+>   tegn i build-output (f.eks. pip/npm-pakkemetadata), selv med tvunget
+>   UTF-8-konsoll. Fikset ved å aldri bruke `--source`: images bygges separat
+>   med `az acr build --no-logs`, og deployes deretter med
+>   `az containerapp up --image` + eksplisitte `--registry-server/-username/-password`.
+> - **Frontend Docker-build feilet med `tsc: Permission denied`:** manglende
+>   `frontend/.dockerignore` gjorde at `COPY . .` i `frontend/Dockerfile`
+>   overskrev containerens nylig-installerte (Linux-rettigheter)
+>   `node_modules/.bin/tsc` med en lokalt Windows-bygget `node_modules`-mappe
+>   fra build-konteksten. Fikset med en `frontend/.dockerignore` som
+>   ekskluderer `node_modules`, `dist`, `.git`, `.env`, `*.log` – en generell
+>   gotcha for enhver Dockerfile som gjør `COPY . .` etter `npm install` når
+>   du utvikler på en annen OS enn containeren.
+> - **`(ResourceNotProvisioned)` ved re-deploy:** hvis en container app
+>   havner i `ProvisioningState: Failed` (f.eks. fra et tidligere mislykket
+>   forsøk), er ikke `az containerapp up` selvhelbredende – den feiler med
+>   denne spesifikke feilen i stedet for å fikse ressursen. Scriptet
+>   sjekker nå provisioning-state og sletter+gjenoppretter automatisk hvis
+>   den henger fast i `Failed`, før det forsøker å deploye på nytt.
 
 1. Push repoet til GitHub (allerede gjort for `geir-life-hub`).
 2. **Database (Neon, gratis, uten kort):**

@@ -29,3 +29,6 @@ dist-ssr/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local deploy diagnostic logs (az acr task logs, deploy.ps1 output captures)
+azure/*.log
