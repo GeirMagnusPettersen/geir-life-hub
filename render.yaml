@@ -1,5 +1,15 @@
 # Render.com blueprint for Geir Life Hub.
 #
+# NOTE: Render requires credit card verification before it will create
+# resources via the Blueprint flow (this one) or its own managed Postgres,
+# even on the free plan. Individually-created Web Services / Static Sites
+# ("New +" -> "Web Service"/"Static Site", not "Blueprint") do NOT require a
+# card. If you want a fully card-free free-tier deploy, follow the manual
+# step-by-step instructions in README.md ("Kom i gang (skyhosting, helt
+# gratis og uten kredittkort)") instead, which creates the two services by
+# hand and uses Neon.tech for Postgres. This file is kept as a reference/
+# shortcut for anyone who doesn't mind verifying a card with Render.
+#
 # This is an *alternative* to the Docker Compose self-hosting path in
 # docker-compose.yml, for the case where you'd rather have the app built and
 # run on a managed cloud platform instead of a machine you operate yourself.

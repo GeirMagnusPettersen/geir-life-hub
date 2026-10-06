@@ -85,32 +85,57 @@ ukes-bøtter (snitt vekt, væske/kaffe per dag, symptomtelling). Frontend-
 dashboardet viser dette per bruker, med trendserien i en utvidbar tabell
 (`<details>`).
 
-## Kom i gang (skyhosting via Render)
+## Kom i gang (skyhosting, helt gratis og uten kredittkort)
 
 Docker Compose over er ment for selvhosting på egen maskin/VPS. Hvis du i
-stedet vil ha appen kjørende på en administrert skytjeneste (uten å drifte
-Docker selv), støtter repoet et [Render](https://render.com)-blueprint
-(`render.yaml`) som bygger backend og frontend direkte fra kildekode (ingen
-Dockerfile kreves på Render) og provisjonerer en administrert Postgres.
+stedet vil ha appen kjørende på en administrert skytjeneste – **helt gratis,
+uten å måtte registrere kredittkort** – er dette den verifiserte fremgangs-
+måten (bekreftet live i Render/Neon sine dashbord):
+
+> **Viktig oppdagelse:** Renders **Blueprint**-flyt (`render.yaml` under)
+> og Renders egen **Postgres**-provisjonering krever begge kredittkort-
+> verifisering, selv på gratisplanen. Å opprette enkelttjenester manuelt
+> (**New +** → **Web Service** / **Static Site**) krever derimot *ikke*
+> kort. Løsningen er derfor å opprette backend og frontend som separate
+> manuelle tjenester på Render, og bruke [Neon](https://neon.tech) (gratis,
+> uten kort) som ekstern Postgres-database i stedet for Renders egen.
+> `render.yaml` ligger fortsatt i repoet som referanse/dokumentasjon for
+> Blueprint-oppsettet, men krever altså kort hvis du velger den veien.
 
 1. Push repoet til GitHub (allerede gjort for `geir-life-hub`).
-2. Logg inn på Render, velg **New +** → **Blueprint**, og pek på repoet.
-   Render leser `render.yaml` og foreslår å opprette tre ressurser:
-   `lifehub-postgres` (database), `lifehub-backend` (web service) og
-   `lifehub-frontend` (static site).
-3. Godkjenn blueprintet. `SESSION_SECRET_KEY` genereres automatisk
-   (`generateValue: true`), og `DATABASE_URL` kobles automatisk til den
-   administrerte databasen (`fromDatabase`). Backend normaliserer selv
-   `postgres://`/`postgresql://`-URL-er Render gir deg til
-   `postgresql+psycopg://` som appen faktisk bruker – ingen manuell
-   URL-redigering nødvendig.
-4. Render ber deg sette to verdier manuelt (markert `sync: false` i
-   `render.yaml`) etter første deploy, når du kjenner de faktiske URL-ene:
-   - På `lifehub-backend`: `CORS_ORIGINS` = frontendens Render-URL
-     (f.eks. `https://lifehub-frontend.onrender.com`).
-   - På `lifehub-frontend`: `VITE_API_BASE_URL` = backendens Render-URL
+2. **Database (Neon, gratis, uten kort):**
+   - Gå til [neon.tech](https://neon.tech) → **Get started** → logg inn med
+     GitHub/Google/e-post (ingen kort kreves).
+   - Opprett et nytt prosjekt (f.eks. `lifehub`). Neon oppretter automatisk
+     en database og gir deg en tilkoblingsstreng av typen
+     `postgresql://bruker:passord@host/db?sslmode=require`.
+   - Kopier denne – den brukes som `DATABASE_URL` under. Backend normaliserer
+     selv `postgres://`/`postgresql://` til `postgresql+psycopg://`, så du
+     trenger ikke redigere strengen manuelt.
+3. **Backend (Render Web Service, gratis plan):**
+   - Render-dashbord → **New +** → **Web Service** (ikke Blueprint) → koble
+     til GitHub (autoriser Render-appen for repoet) → velg `geir-life-hub`.
+   - Velg compute-plan **Free** ($0/mnd).
+   - Sett **Root Directory** = `backend` og **Dockerfile Path** =
+     `backend/Dockerfile` (build-contexten må være `backend/`-mappen siden
+     Dockerfilens `COPY`-instruksjoner er relative til den).
+   - Legg til miljøvariabler:
+     - `ENVIRONMENT` = `production`
+     - `SESSION_SECRET_KEY` = bruk Renders **Generate**-knapp (ikke skriv
+       inn en egen verdi)
+     - `DATABASE_URL` = tilkoblingsstrengen fra Neon (steg 2)
+     - `CORS_ORIGINS` = frontendens URL (steg 4 – kan oppdateres etterpå)
+     - `MIN_PASSWORD_LENGTH` = `10` (valgfritt, dette er default)
+   - Klikk **Deploy web service**.
+4. **Frontend (Render Static Site, gratis):**
+   - **New +** → **Static Site** → velg samme repo.
+   - **Root Directory** = `frontend`, **Build Command** = `npm run build`,
+     **Publish Directory** = `dist`.
+   - Miljøvariabel `VITE_API_BASE_URL` = backendens Render-URL fra steg 3
      (f.eks. `https://lifehub-backend.onrender.com`).
-5. Opprett de to husholdningsbrukerne via Render sitt "Shell"-faner for
+5. Gå tilbake til backend-tjenesten og oppdater `CORS_ORIGINS` til
+   frontendens faktiske URL fra steg 4, så redeploy.
+6. Opprett de to husholdningsbrukerne via Render sitt **Shell**-fane for
    `lifehub-backend`-tjenesten (tilsvarende `docker compose exec` lokalt):
 
    ```bash
@@ -118,16 +143,18 @@ Dockerfile kreves på Render) og provisjonerer en administrert Postgres.
    python -m app.cli create-user --username kristin --display-name Kristin
    ```
 
-6. Åpne frontendens Render-URL i nettleseren.
+7. Åpne frontendens Render-URL i nettleseren.
 
 KitchenOwl-adapteren er valgfri også her – sett `KITCHENOWL_BASE_URL` m.fl.
 som miljøvariabler på `lifehub-backend`-tjenesten i Render-dashbordet hvis du
 har en egen selvhostet KitchenOwl-instans å koble på.
 
-> Merk: den gratis Render-planen "sover" tjenester etter inaktivitet (første
-> forespørsel etter en pause kan ta noen sekunder) og databasen har en
-> gratisperiode på 90 dager. Oppgrader til en betalt plan i Render-dashbordet
-> for alltid-på drift og vedvarende database.
+> Merk: den gratis Render-planen "sover" tjenester etter ca. 15 minutters
+> inaktivitet (første forespørsel etter en pause kan ta 30–60 sekunder), og
+> Neons gratisplan har også en "scale-to-zero"-oppførsel for inaktive
+> databaser (vekkes automatisk ved neste spørring). Ingen av delene krever
+> kort eller koster noe på gratisnivå. Oppgrader til betalte planer hos
+> Render/Neon hvis du vil ha alltid-på drift.
 
 ### Health Connect-sync-kontrakt (forberedelse for Android-companion)
 
