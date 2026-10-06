@@ -124,17 +124,22 @@ fremgangsmåten (bekreftet live i Render/Neon sine dashbord):
 >
 > **Microsoft/Azure-alternativ:** vanlig **Azure Free Account** krever
 > kredittkort ved registrering (samme type identitetsverifisering som
-> Render), så det er ikke et kortfritt alternativ for de fleste. Unntaket
-> er **[Azure for Students](https://azure.microsoft.com/free/students/)**:
-> ingen kort kreves, kun verifisering via en akkreditert skole-e-post (eller
-> GitHub Student Pack i noen tilfeller). Gir $100 Azure-kreditt + en del
-> alltid-gratis tjenester i 12 måneder, fornybart så lenge studentstatus kan
-> bekreftes. Dette dekker i praksis både backend (f.eks. Azure App Service
-> eller Container Apps) og database (Azure Database for PostgreSQL –
-> flexible server har et gratis forbruksnivå). Vi har **ikke** satt opp
-> dette ennå siden det krever bekreftelse av at du faktisk har gyldig
-> studentstatus – gi beskjed hvis det stemmer, så setter vi opp denne veien
-> i stedet for Render.
+> Render), så det er ikke et kortfritt alternativ for de fleste. Det finnes
+> derimot et **bekreftet internt Microsoft-ansattgode** som er relevant her:
+> som **Microsoft FTE** er du kvalifisert for **$150 Azure-kreditt per
+> måned** (~$1 800/år) via Visual Studio Enterprise/FTE-abonnementet – se
+> intern side *"Activating Your Azure Visual Studio FTE Subscription"* på
+> SharePoint (`AELBootCamp`). Aktivering krever en **personlig
+> Microsoft-konto/e-post** (ikke bare `@microsoft.com`) koblet til FTE-
+> identiteten din. Dette dekker trygt både backend (App Service eller
+> Container Apps) og database (Azure Database for PostgreSQL) for et
+> hobbyoppsett som Geir Life Hub, og krever ikke eget kredittkort utover det
+> som eventuelt kreves for selve FTE-/VS-abonnementsaktiveringen internt.
+> Dette er det anbefalte sky-alternativet fremfor Render, siden det er
+> bekreftet gratis innenfor kreditten og ikke avhenger av studentstatus.
+> (Alternativt finnes **[Azure for Students](https://azure.microsoft.com/free/students/)**
+> for de uten FTE-tilgang: ingen kort, kun skole-e-post/studentbevis, $100
+> kreditt/år.)
 
 1. Push repoet til GitHub (allerede gjort for `geir-life-hub`).
 2. **Database (Neon, gratis, uten kort):**
