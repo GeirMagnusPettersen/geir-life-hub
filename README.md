@@ -141,6 +141,41 @@ fremgangsmåten (bekreftet live i Render/Neon sine dashbord):
 > for de uten FTE-tilgang: ingen kort, kun skole-e-post/studentbevis, $100
 > kreditt/år.)
 
+### Azure-deployment (anbefalt, via FTE-kreditten)
+
+Et ferdig script ligger i [`azure/deploy.ps1`](azure/deploy.ps1). Det er vanlig
+`az` CLI (ingen Bicep/Terraform) og oppretter en resource group, en Azure
+Database for PostgreSQL Flexible Server (billigste Burstable B1ms-tier) og to
+Azure Container Apps (backend + frontend), bygget direkte fra de eksisterende
+Dockerfile-ene.
+
+**Forutsetninger (gjør dette selv, scriptet kan ikke gjøre det for deg):**
+1. Aktiver FTE Azure-kreditten via SharePoint-siden nevnt over, med en
+   **personlig** Microsoft-konto (ikke `@microsoft.com`).
+2. Kjør `az login` lokalt på din egen maskin med den personlige kontoen.
+3. Kjør `az account set --subscription "<navn-eller-ID>"` for å velge riktig
+   abonnement (bruk `az account list -o table` for å finne det – se etter
+   noe i retning "Visual Studio Enterprise" eller lignende, ikke en intern
+   Microsoft-subscription).
+
+**Kjør scriptet:**
+```powershell
+cd azure
+./deploy.ps1
+```
+
+Scriptet skriver ut frontend- og backend-URL-ene når det er ferdig, og en
+kommando for å slette alt igjen (`az group delete`) hvis du vil rydde opp.
+Kostnad holder seg godt innenfor $150/måned-kreditten for et 2-brukers
+hobbyoppsett.
+
+> **Viktig:** Dette scriptet er ikke kjørt eller verifisert av agenten selv,
+> fordi agentens eget `az`-CLI-oppsett i dette miljøet er logget inn på en
+> intern Microsoft-subscription ("MSAI Internal Tools"), ikke din personlige
+> FTE-subscription. Det ville vært upassende å deploye et personlig
+> hobbyprosjekt i en intern Microsoft-subscription, så du må kjøre scriptet
+> selv fra din egen innloggede `az`-sesjon.
+
 1. Push repoet til GitHub (allerede gjort for `geir-life-hub`).
 2. **Database (Neon, gratis, uten kort):**
    - Gå til [neon.tech](https://neon.tech) → **Get started** → logg inn med
