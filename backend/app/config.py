@@ -22,10 +22,19 @@ class Settings:
     """
 
     def __init__(self) -> None:
-        self.database_url: str = os.environ.get(
+        raw_database_url = os.environ.get(
             "DATABASE_URL",
             "postgresql+psycopg://lifehub:lifehub@localhost:5432/lifehub",
         )
+        # Managed hosts (Render, Railway, etc.) hand out connection strings
+        # with the bare "postgres://" or "postgresql://" scheme, which
+        # SQLAlchemy resolves to psycopg2 by default. We ship psycopg (v3)
+        # instead, so normalize the scheme to request that driver explicitly.
+        if raw_database_url.startswith("postgres://"):
+            raw_database_url = raw_database_url.replace("postgres://", "postgresql+psycopg://", 1)
+        elif raw_database_url.startswith("postgresql://") and not raw_database_url.startswith("postgresql+psycopg://"):
+            raw_database_url = raw_database_url.replace("postgresql://", "postgresql+psycopg://", 1)
+        self.database_url: str = raw_database_url
 
         self.environment: str = os.environ.get("ENVIRONMENT", "development")
         self.is_production: bool = self.environment.lower() == "production"

@@ -85,6 +85,50 @@ ukes-bøtter (snitt vekt, væske/kaffe per dag, symptomtelling). Frontend-
 dashboardet viser dette per bruker, med trendserien i en utvidbar tabell
 (`<details>`).
 
+## Kom i gang (skyhosting via Render)
+
+Docker Compose over er ment for selvhosting på egen maskin/VPS. Hvis du i
+stedet vil ha appen kjørende på en administrert skytjeneste (uten å drifte
+Docker selv), støtter repoet et [Render](https://render.com)-blueprint
+(`render.yaml`) som bygger backend og frontend direkte fra kildekode (ingen
+Dockerfile kreves på Render) og provisjonerer en administrert Postgres.
+
+1. Push repoet til GitHub (allerede gjort for `geir-life-hub`).
+2. Logg inn på Render, velg **New +** → **Blueprint**, og pek på repoet.
+   Render leser `render.yaml` og foreslår å opprette tre ressurser:
+   `lifehub-postgres` (database), `lifehub-backend` (web service) og
+   `lifehub-frontend` (static site).
+3. Godkjenn blueprintet. `SESSION_SECRET_KEY` genereres automatisk
+   (`generateValue: true`), og `DATABASE_URL` kobles automatisk til den
+   administrerte databasen (`fromDatabase`). Backend normaliserer selv
+   `postgres://`/`postgresql://`-URL-er Render gir deg til
+   `postgresql+psycopg://` som appen faktisk bruker – ingen manuell
+   URL-redigering nødvendig.
+4. Render ber deg sette to verdier manuelt (markert `sync: false` i
+   `render.yaml`) etter første deploy, når du kjenner de faktiske URL-ene:
+   - På `lifehub-backend`: `CORS_ORIGINS` = frontendens Render-URL
+     (f.eks. `https://lifehub-frontend.onrender.com`).
+   - På `lifehub-frontend`: `VITE_API_BASE_URL` = backendens Render-URL
+     (f.eks. `https://lifehub-backend.onrender.com`).
+5. Opprett de to husholdningsbrukerne via Render sitt "Shell"-faner for
+   `lifehub-backend`-tjenesten (tilsvarende `docker compose exec` lokalt):
+
+   ```bash
+   python -m app.cli create-user --username geir --display-name Geir
+   python -m app.cli create-user --username kristin --display-name Kristin
+   ```
+
+6. Åpne frontendens Render-URL i nettleseren.
+
+KitchenOwl-adapteren er valgfri også her – sett `KITCHENOWL_BASE_URL` m.fl.
+som miljøvariabler på `lifehub-backend`-tjenesten i Render-dashbordet hvis du
+har en egen selvhostet KitchenOwl-instans å koble på.
+
+> Merk: den gratis Render-planen "sover" tjenester etter inaktivitet (første
+> forespørsel etter en pause kan ta noen sekunder) og databasen har en
+> gratisperiode på 90 dager. Oppgrader til en betalt plan i Render-dashbordet
+> for alltid-på drift og vedvarende database.
+
 ### Health Connect-sync-kontrakt (forberedelse for Android-companion)
 
 Backend-siden av den fremtidige Android Health Connect-companionen (se
