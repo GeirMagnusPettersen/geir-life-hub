@@ -112,12 +112,29 @@ fremgangsmåten (bekreftet live i Render/Neon sine dashbord):
 > utgående nettverkstilkobling til en ekstern Postgres-database som Neon.
 >
 > **Praktisk konklusjon:** et *helt* kortfritt cloud-oppsett for
-> backend-compute har vi ikke funnet en fungerende løsning for per nå. De
-> reelle alternativene er (a) legge inn et kort hos Render for
-> verifiseringssteget og bli på gratisplanen (ingen løpende kostnad så
-> lenge ressursgrensene ikke overskrides), eller (b) kjøre backend/frontend
-> selv via Docker Compose-oppsettet over, på egen maskin/NAS/VPS – som
-> aldri krever kort siden det er din egen maskinvare.
+> backend-compute har vi ikke funnet en fungerende løsning for per nå for
+> allmenn bruk. De reelle alternativene er (a) legge inn et kort hos Render
+> for verifiseringssteget og bli på gratisplanen (ingen løpende kostnad så
+> lenge ressursgrensene ikke overskrides), (b) kjøre backend/frontend selv
+> via Docker Compose-oppsettet over, på egen maskin/NAS/VPS – som aldri
+> krever kort siden det er din egen maskinvare, eller (c) **Azure for
+> Students** hvis du er fulltidsstudent (se under) – eneste undersøkte
+> skyalternativ som verken krever kort eller er begrenset av nettverks-
+> policy, men krever skole-e-post/studentbevis for verifisering.
+>
+> **Microsoft/Azure-alternativ:** vanlig **Azure Free Account** krever
+> kredittkort ved registrering (samme type identitetsverifisering som
+> Render), så det er ikke et kortfritt alternativ for de fleste. Unntaket
+> er **[Azure for Students](https://azure.microsoft.com/free/students/)**:
+> ingen kort kreves, kun verifisering via en akkreditert skole-e-post (eller
+> GitHub Student Pack i noen tilfeller). Gir $100 Azure-kreditt + en del
+> alltid-gratis tjenester i 12 måneder, fornybart så lenge studentstatus kan
+> bekreftes. Dette dekker i praksis både backend (f.eks. Azure App Service
+> eller Container Apps) og database (Azure Database for PostgreSQL –
+> flexible server har et gratis forbruksnivå). Vi har **ikke** satt opp
+> dette ennå siden det krever bekreftelse av at du faktisk har gyldig
+> studentstatus – gi beskjed hvis det stemmer, så setter vi opp denne veien
+> i stedet for Render.
 
 1. Push repoet til GitHub (allerede gjort for `geir-life-hub`).
 2. **Database (Neon, gratis, uten kort):**
