@@ -2,14 +2,31 @@
 
 Per the project brief, Life Hub does NOT duplicate KitchenOwl's recipe /
 shopping-list data model locally. Instead this module is an HTTP client that
-talks to KitchenOwl's own API (JWT auth, household/group scoped) so it can be
-wired in without any local schema changes.
+talks to KitchenOwl's own API (JWT auth, household scoped) so it can be wired
+in without any local schema changes.
 
-KitchenOwl's auth flow is roughly: POST /auth/login {username, password} ->
-{access_token, refresh_token}, then Bearer-authenticated requests against
-/household/<id>/... endpoints scoped to the configured household/group. This
-client intentionally exposes a small, explicit surface (read recipes, read/
-write the shopping list) rather than a full SDK.
+KitchenOwl's real routes (verified against the TomBursch/kitchenowl backend
+source, since KitchenOwl does not publish a stable API spec) are mounted
+under `/api` and look like this:
+
+- ``POST /api/auth`` with ``{username, password}`` -> ``{access_token,
+  refresh_token, ...}``. Note this is *not* ``/auth/login``.
+- ``GET /api/household/<household_id>`` -> household details, including
+  ``default_shopping_list.id`` - KitchenOwl shopping lists are addressed by
+  their own id, not the household id, so this client resolves and caches
+  that id lazily on first use.
+- ``GET /api/shoppinglist/<shoppinglist_id>/items`` / ``POST
+  /api/shoppinglist/<shoppinglist_id>/add-item-by-name`` / ``DELETE
+  /api/shoppinglist/<shoppinglist_id>/item`` (body: ``{"item_id": ...}``) -
+  shopping list item operations live on a top-level ``/shoppinglist``
+  resource, *not* nested under ``/household/<id>/...``. KitchenOwl has no
+  "uncheck" endpoint: checking an item off is modeled as removing it from
+  the list.
+- ``GET /api/household/<household_id>/recipe`` (singular) lists recipes for
+  the household.
+
+This client intentionally exposes a small, explicit surface (read recipes,
+read/write the shopping list) rather than a full SDK.
 """
 from __future__ import annotations
 
@@ -33,6 +50,10 @@ class KitchenOwlClient:
         self._settings = settings or get_settings()
         self._access_token: str | None = None
         self._refresh_token: str | None = None
+        # KitchenOwl shopping lists are addressed by their own id (not the
+        # household id); resolved lazily via the household lookup and
+        # cached for the lifetime of this client instance.
+        self._shopping_list_id: int | None = None
         # Only ever set by tests, to inject a mock transport; production
         # code always talks over the real network.
         self._transport = transport
@@ -64,7 +85,7 @@ class KitchenOwlClient:
                 "KITCHENOWL_USERNAME/KITCHENOWL_PASSWORD are not set."
             )
         response = client.post(
-            "/auth/login",
+            "/auth",
             json={
                 "username": self._settings.kitchenowl_username,
                 "password": self._settings.kitchenowl_password,
@@ -102,35 +123,62 @@ class KitchenOwlClient:
             response.raise_for_status()
             return response
 
-    def get_shopping_list_items(self) -> list[dict[str, Any]]:
+    def _get_shopping_list_id(self) -> int:
+        """Resolve (and cache) the household's default shopping list id.
+
+        KitchenOwl shopping lists have their own id distinct from the
+        household id, so this must be looked up via the household before any
+        shopping-list item endpoint can be called.
+        """
+        if self._shopping_list_id is not None:
+            return self._shopping_list_id
         household_id = self._require_household_id()
-        response = self._request("GET", f"/household/{household_id}/shoppinglist/1/items")
+        response = self._request("GET", f"/household/{household_id}")
+        payload = response.json()
+        shopping_list_id = payload["default_shopping_list"]["id"]
+        self._shopping_list_id = shopping_list_id
+        return shopping_list_id
+
+    def get_shopping_list_items(self) -> list[dict[str, Any]]:
+        shopping_list_id = self._get_shopping_list_id()
+        response = self._request("GET", f"/shoppinglist/{shopping_list_id}/items")
         return response.json()
 
     def add_shopping_list_item(
         self, name: str, *, description: str | None = None
     ) -> dict[str, Any]:
-        """Add a single item to the household's (first) shopping list by name."""
-        household_id = self._require_household_id()
+        """Add a single item to the household's default shopping list by name."""
+        shopping_list_id = self._get_shopping_list_id()
         payload: dict[str, Any] = {"name": name}
         if description:
             payload["description"] = description
         response = self._request(
-            "POST", f"/household/{household_id}/shoppinglist/1/item-by-name", json=payload
+            "POST", f"/shoppinglist/{shopping_list_id}/add-item-by-name", json=payload
         )
         return response.json()
 
     def set_shopping_list_item_checked(self, item_id: int, checked: bool) -> dict[str, Any]:
-        """Mark an existing shopping list item as checked/unchecked."""
-        household_id = self._require_household_id()
+        """Check an item off the shopping list.
+
+        KitchenOwl has no "uncheck" operation - checking an item off removes
+        it from the active shopping list (its history is kept separately).
+        Only ``checked=True`` is supported; re-adding an item is done via
+        :meth:`add_shopping_list_item`.
+        """
+        if not checked:
+            raise NotImplementedError(
+                "KitchenOwl has no endpoint to un-check a shopping list item; "
+                "use add_shopping_list_item to add it back instead."
+            )
+        shopping_list_id = self._get_shopping_list_id()
         response = self._request(
-            "PUT",
-            f"/household/{household_id}/shoppinglist/1/item/{item_id}",
-            json={"checked": checked},
+            "DELETE",
+            f"/shoppinglist/{shopping_list_id}/item",
+            json={"item_id": item_id},
         )
         return response.json()
 
     def get_recipes(self) -> list[dict[str, Any]]:
         household_id = self._require_household_id()
-        response = self._request("GET", f"/household/{household_id}/recipes")
+        response = self._request("GET", f"/household/{household_id}/recipe")
         return response.json()

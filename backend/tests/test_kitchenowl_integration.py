@@ -57,11 +57,14 @@ def test_client_logs_in_and_fetches_shopping_list_items(monkeypatch):
 
     def handler(request: httpx.Request) -> httpx.Response:
         calls.append(request)
-        if request.url.path == "/auth/login":
+        if request.url.path == "/auth":
             assert request.method == "POST"
             assert json.loads(request.content) == {"username": "geir", "password": "hunter2-hunter2"}
             return httpx.Response(200, json={"access_token": "tok-1", "refresh_token": "ref-1"})
-        if request.url.path == "/household/1/shoppinglist/1/items":
+        if request.url.path == "/household/1":
+            assert request.headers["Authorization"] == "Bearer tok-1"
+            return httpx.Response(200, json={"id": 1, "default_shopping_list": {"id": 1}})
+        if request.url.path == "/shoppinglist/1/items":
             assert request.headers["Authorization"] == "Bearer tok-1"
             return httpx.Response(200, json=[{"id": 1, "name": "Milk"}])
         raise AssertionError(f"unexpected request: {request.method} {request.url.path}")
@@ -70,25 +73,33 @@ def test_client_logs_in_and_fetches_shopping_list_items(monkeypatch):
     items = client.get_shopping_list_items()
 
     assert items == [{"id": 1, "name": "Milk"}]
-    assert [c.url.path for c in calls] == ["/auth/login", "/household/1/shoppinglist/1/items"]
+    assert [c.url.path for c in calls] == ["/auth", "/household/1", "/shoppinglist/1/items"]
 
 
-def test_client_caches_access_token_across_calls(monkeypatch):
+def test_client_caches_access_token_and_shopping_list_id_across_calls(monkeypatch):
     settings = _settings_with_kitchenowl(monkeypatch)
     login_calls = 0
+    household_calls = 0
 
     def handler(request: httpx.Request) -> httpx.Response:
-        nonlocal login_calls
-        if request.url.path == "/auth/login":
+        nonlocal login_calls, household_calls
+        if request.url.path == "/auth":
             login_calls += 1
             return httpx.Response(200, json={"access_token": "tok-1"})
+        if request.url.path == "/household/1":
+            household_calls += 1
+            return httpx.Response(200, json={"id": 1, "default_shopping_list": {"id": 1}})
         return httpx.Response(200, json=[])
 
     client = KitchenOwlClient(settings=settings, transport=httpx.MockTransport(handler))
     client.get_shopping_list_items()
     client.get_recipes()
+    client.get_shopping_list_items()
 
     assert login_calls == 1
+    # The shopping list id is resolved via the household lookup once and
+    # cached; get_recipes() does not need it at all.
+    assert household_calls == 1
 
 
 def test_client_re_logs_in_once_on_401(monkeypatch):
@@ -98,10 +109,10 @@ def test_client_re_logs_in_once_on_401(monkeypatch):
 
     def handler(request: httpx.Request) -> httpx.Response:
         nonlocal login_calls
-        if request.url.path == "/auth/login":
+        if request.url.path == "/auth":
             login_calls += 1
             return httpx.Response(200, json={"access_token": f"tok-{login_calls}"})
-        if request.url.path == "/household/1/recipes":
+        if request.url.path == "/household/1/recipe":
             auth_header = request.headers["Authorization"]
             tokens_seen.append(auth_header)
             if auth_header == "Bearer tok-1":
@@ -121,9 +132,11 @@ def test_client_adds_shopping_list_item_by_name(monkeypatch):
     settings = _settings_with_kitchenowl(monkeypatch)
 
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/auth/login":
+        if request.url.path == "/auth":
             return httpx.Response(200, json={"access_token": "tok-1"})
-        if request.url.path == "/household/1/shoppinglist/1/item-by-name":
+        if request.url.path == "/household/1":
+            return httpx.Response(200, json={"id": 1, "default_shopping_list": {"id": 1}})
+        if request.url.path == "/shoppinglist/1/add-item-by-name":
             assert request.method == "POST"
             assert json.loads(request.content) == {"name": "Eggs", "description": "dozen"}
             return httpx.Response(200, json={"id": 2, "name": "Eggs"})
@@ -135,22 +148,31 @@ def test_client_adds_shopping_list_item_by_name(monkeypatch):
     assert result == {"id": 2, "name": "Eggs"}
 
 
-def test_client_checks_off_shopping_list_item(monkeypatch):
+def test_client_checks_off_shopping_list_item_by_removing_it(monkeypatch):
     settings = _settings_with_kitchenowl(monkeypatch)
 
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/auth/login":
+        if request.url.path == "/auth":
             return httpx.Response(200, json={"access_token": "tok-1"})
-        if request.url.path == "/household/1/shoppinglist/1/item/7":
-            assert request.method == "PUT"
-            assert json.loads(request.content) == {"checked": True}
-            return httpx.Response(200, json={"id": 7, "checked": True})
+        if request.url.path == "/household/1":
+            return httpx.Response(200, json={"id": 1, "default_shopping_list": {"id": 1}})
+        if request.url.path == "/shoppinglist/1/item":
+            assert request.method == "DELETE"
+            assert json.loads(request.content) == {"item_id": 7}
+            return httpx.Response(200, json={"id": 7})
         raise AssertionError(f"unexpected request: {request.method} {request.url.path}")
 
     client = KitchenOwlClient(settings=settings, transport=httpx.MockTransport(handler))
     result = client.set_shopping_list_item_checked(7, True)
 
-    assert result == {"id": 7, "checked": True}
+    assert result == {"id": 7}
+
+
+def test_client_rejects_unchecking_a_shopping_list_item(monkeypatch):
+    settings = _settings_with_kitchenowl(monkeypatch)
+    client = KitchenOwlClient(settings=settings)
+    with pytest.raises(NotImplementedError):
+        client.set_shopping_list_item_checked(7, False)
 
 
 def test_client_raises_when_household_id_missing(monkeypatch):
@@ -167,7 +189,7 @@ def test_client_propagates_http_errors(monkeypatch):
     settings = _settings_with_kitchenowl(monkeypatch)
 
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/auth/login":
+        if request.url.path == "/auth":
             return httpx.Response(200, json={"access_token": "tok-1"})
         return httpx.Response(500, json={"detail": "boom"})
 

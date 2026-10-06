@@ -67,6 +67,8 @@ def kitchenowl_update_shopping_list_item(
         return client.set_shopping_list_item_checked(item_id, update.checked)
     except KitchenOwlNotConfiguredError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except NotImplementedError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/recipes")
