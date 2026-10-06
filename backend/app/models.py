@@ -60,6 +60,27 @@ class AuthSession(Base):
     user: Mapped["User"] = relationship(back_populates="sessions")
 
 
+class DeviceToken(Base):
+    """Long-lived API token for a background sync client.
+
+    This is the auth mechanism the future Health Connect Android companion
+    will use to push data: distinct from the browser AuthSession (no cookie,
+    no fixed expiry), and scoped to sync endpoints only. Only the sha256
+    hash is stored; the plaintext token is shown once at creation time."""
+
+    __tablename__ = "device_tokens"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid_str)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    label: Mapped[str] = mapped_column(String(128), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped["User"] = relationship()
+
+
 class WeightEntry(Base):
     __tablename__ = "weight_entries"
 
@@ -129,3 +150,4 @@ class SleepActivitySummary(Base):
     source: Mapped[str] = mapped_column(String(32), default="manual", nullable=False)
     synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+

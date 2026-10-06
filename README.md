@@ -85,6 +85,28 @@ ukes-bøtter (snitt vekt, væske/kaffe per dag, symptomtelling). Frontend-
 dashboardet viser dette per bruker, med trendserien i en utvidbar tabell
 (`<details>`).
 
+### Health Connect-sync-kontrakt (forberedelse for Android-companion)
+
+Backend-siden av den fremtidige Android Health Connect-companionen (se
+`PROJECT_BRIEF.md` seksjon 2/4) er klar til bruk, selv om selve Android-appen
+ikke er bygget ennå – det krever Android SDK/Gradle/Kotlin-verktøy som ikke er
+tilgjengelig i dette utviklingsmiljøet. Kontrakten companionen skal bruke:
+
+1. En innlogget bruker (via PWA-et) oppretter en enhetstoken:
+   `POST /devices {"label": "Geirs telefon"}` → responsen inneholder
+   klarteksttokenet **én gang** (`token`-feltet) – det vises aldri igjen.
+   `GET /devices` lister enheter (uten klartekst), `DELETE /devices/{id}`
+   tilbakekaller en enhet.
+2. Companionen autentiserer synk-kall med `Authorization: Bearer <token>`
+   (ikke sesjonscookie): `POST /sleep-activity/sync` med
+   `{"entries": [{"summary_date": "...", "sleep_minutes": ..., "steps": ...}]}`.
+   Rader upsertes per dato og stemples alltid `source="health_connect"` og
+   `synced_at`, uavhengig av hva klienten sender.
+3. Et tilbakekalt token gir `401` på alle påfølgende synk-kall.
+
+Dette gir et testet, stabilt API-kontraktpunkt å bygge Android-companionen
+mot når det blir neste fase, uten å måtte endre backend-skjemaet da.
+
 ## Lokal utvikling
 
 ### Backend
@@ -115,9 +137,10 @@ cd backend
 pytest -q
 ```
 
-Alle 30 tester (auth/passordpolicy, kjernemodeller for vekt/væske/kaffe/
-helseobservasjoner/søvn-aktivitet, dashboard-aggregering inkl. ukentlig
-trend, KitchenOwl-adapter) skal passere. Testene kjører mot en SQLite
+Alle 37 tester (auth/passordpolicy, kjernemodeller for vekt/væske/kaffe/
+helseobservasjoner/søvn-aktivitet, enhetstoken-administrasjon, Health
+Connect-synk-kontrakten, dashboard-aggregering inkl. ukentlig trend,
+KitchenOwl-adapter) skal passere. Testene kjører mot en SQLite
 in-memory-database og trenger ikke Postgres eller Docker.
 
 ### Frontend
@@ -144,6 +167,10 @@ Implementert:
 - 2-brukers sesjonsbasert auth (Argon2-hashing, server-side minimumslengde på passord)
 - Manuell logging: vekt, væske, kaffe, helseobservasjoner
 - Søvn/aktivitet: datamodell/endepunkt som plassholder for senere Health Connect-sync
+- Enhetstoken-API (`/devices`) + `/sleep-activity/sync`: ferdig, testet
+  backend-kontrakt for den fremtidige Health Connect Android-companionen
+  (selve Android-appen er ikke bygget – krever Android-verktøy som ikke er
+  tilgjengelig her)
 - Dashboard-/rapportendepunkt som aggregerer på tvers av områdene
 - KitchenOwl-adapter (grensesnitt mot separat selvhostet instans, ingen lokal duplisering av dens datamodell)
 - Docker Compose for backend + Postgres + frontend, versjonspinnet, uten hardkodede hemmeligheter

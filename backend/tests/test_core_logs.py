@@ -60,3 +60,72 @@ def test_sleep_activity_upsert_by_date(auth_client):
 
     response = auth_client.get("/sleep-activity")
     assert len(response.json()) == 1
+
+
+def test_health_connect_sync_requires_device_token(client):
+    response = client.post(
+        "/sleep-activity/sync",
+        json={"entries": [{"summary_date": "2026-01-01", "sleep_minutes": 400, "steps": 5000}]},
+    )
+    assert response.status_code == 401
+
+
+def test_health_connect_sync_rejects_session_cookie(auth_client):
+    # The sync endpoint is device-token-only; a logged-in browser session
+    # must not be able to use it directly (no Authorization header present).
+    response = auth_client.post(
+        "/sleep-activity/sync",
+        json={"entries": [{"summary_date": "2026-01-01", "sleep_minutes": 400, "steps": 5000}]},
+    )
+    assert response.status_code == 401
+
+
+def test_health_connect_sync_upserts_and_stamps_source(auth_client):
+    device_response = auth_client.post("/devices", json={"label": "Test phone"})
+    assert device_response.status_code == 201
+    token = device_response.json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    sync_response = auth_client.post(
+        "/sleep-activity/sync",
+        headers=headers,
+        json={
+            "entries": [
+                {"summary_date": "2026-01-01", "sleep_minutes": 400, "steps": 5000},
+                {"summary_date": "2026-01-02", "sleep_minutes": 410, "steps": 6000},
+            ]
+        },
+    )
+    assert sync_response.status_code == 200
+    assert sync_response.json()["synced"] == 2
+
+    list_response = auth_client.get("/sleep-activity")
+    entries = list_response.json()
+    assert len(entries) == 2
+    assert all(entry["source"] == "health_connect" for entry in entries)
+
+    # Re-syncing the same date upserts rather than duplicating.
+    sync_response = auth_client.post(
+        "/sleep-activity/sync",
+        headers=headers,
+        json={"entries": [{"summary_date": "2026-01-01", "sleep_minutes": 480, "steps": 5500}]},
+    )
+    assert sync_response.status_code == 200
+    list_response = auth_client.get("/sleep-activity")
+    entries = {e["summary_date"]: e for e in list_response.json()}
+    assert len(entries) == 2
+    assert entries["2026-01-01"]["sleep_minutes"] == 480
+
+
+def test_health_connect_sync_rejects_revoked_token(auth_client):
+    device_response = auth_client.post("/devices", json={"label": "Revoked phone"})
+    token_id = device_response.json()["id"]
+    token = device_response.json()["token"]
+    auth_client.delete(f"/devices/{token_id}")
+
+    sync_response = auth_client.post(
+        "/sleep-activity/sync",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"entries": [{"summary_date": "2026-01-01", "sleep_minutes": 400, "steps": 5000}]},
+    )
+    assert sync_response.status_code == 401

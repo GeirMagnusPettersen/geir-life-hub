@@ -122,6 +122,51 @@ class SleepActivityOut(BaseModel):
     source: str
 
 
+# --- Device tokens / Health Connect sync -----------------------------------
+#
+# Auth contract for the future Health Connect Android companion (see
+# PROJECT_BRIEF.md section 2/4): a device token is minted via the session-
+# authenticated /devices endpoints, then the companion authenticates sync
+# requests with `Authorization: Bearer <token>` instead of a cookie.
+
+
+class DeviceTokenCreate(BaseModel):
+    label: str = Field(min_length=1, max_length=128)
+
+
+class DeviceTokenCreated(BaseModel):
+    """Returned only once, at creation time. The plaintext token is never
+    retrievable again after this response."""
+
+    id: str
+    label: str
+    token: str
+
+
+class DeviceTokenOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    label: str
+    created_at: datetime
+    last_used_at: datetime | None
+    revoked_at: datetime | None
+
+
+class HealthConnectSyncItem(BaseModel):
+    summary_date: date
+    sleep_minutes: int | None = Field(default=None, ge=0, le=1440)
+    steps: int | None = Field(default=None, ge=0)
+
+
+class HealthConnectSyncRequest(BaseModel):
+    entries: list[HealthConnectSyncItem] = Field(min_length=1, max_length=366)
+
+
+class HealthConnectSyncResult(BaseModel):
+    synced: int
+
+
 # --- Reports ----------------------------------------------------------------
 
 

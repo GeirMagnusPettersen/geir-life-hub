@@ -7,6 +7,7 @@ rather than anything guessable/sequential.
 """
 from __future__ import annotations
 
+import hashlib
 import secrets
 
 from passlib.context import CryptContext
@@ -35,3 +36,18 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 def generate_session_token() -> str:
     return secrets.token_urlsafe(48)
+
+
+def generate_device_token() -> str:
+    """Plaintext token handed to a sync client (e.g. the Health Connect
+    Android companion). Only its hash (see `hash_device_token`) is stored,
+    so it can only ever be shown to the caller once, at creation time."""
+    return secrets.token_urlsafe(32)
+
+
+def hash_device_token(token: str) -> str:
+    """sha256 is used (not argon2/bcrypt) because device tokens are already
+    high-entropy random values rather than human-chosen passwords: a fast,
+    deterministic hash is appropriate and lets every sync request do a plain
+    indexed lookup instead of a deliberately slow KDF."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
