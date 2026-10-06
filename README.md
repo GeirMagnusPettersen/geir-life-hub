@@ -3,17 +3,19 @@
 Selvhostet personlig/familie Life Hub for husholdningen Geir + Kristin. Se
 [PROJECT_BRIEF.md](PROJECT_BRIEF.md) for de bindende kravene.
 
-Dette er grunnmuren ("scaffold"): backend-API, Postgres, en minimal PWA-frontend
-og en adapter mot et separat, selvhostet KitchenOwl-instans for
-oppskrifter/handleliste. Vekt-/kosthold-/trening-integrasjon mot Vektklubb og
-Garmin er bevisst **ikke** bygget ennå – det er en egen, senere fase.
+Dette er grunnmuren ("scaffold"): backend-API, Postgres, en PWA-frontend som
+konsumerer API-et (innlogging, logg-skjemaer, dashboard med ukentlig trend,
+KitchenOwl-handleliste), og en adapter mot et separat, selvhostet
+KitchenOwl-instans for oppskrifter/handleliste. Vekt-/kosthold-/trening-
+integrasjon mot Vektklubb og Garmin er bevisst **ikke** bygget ennå – det er
+en egen, senere fase.
 
 ## Arkitektur
 
 | Del | Teknologi | Ansvar |
 |---|---|---|
 | `backend/` | Python 3.12, FastAPI, SQLAlchemy, PostgreSQL | Auth, loggbare livsområder (vekt, væske, kaffe, helseobservasjoner, søvn/aktivitet-plassholder), dashboard-aggregering, KitchenOwl-adapter |
-| `frontend/` | Vite + TypeScript, PWA (manifest + service worker) | Delt (ikke privat) visning for begge brukere, logg-skjemaer, dashboard |
+| `frontend/` | Vite + TypeScript, PWA (manifest + service worker) | Delt (ikke privat) visning for begge brukere: innlogging, logg-skjemaer for vekt/væske/kaffe/helseobservasjoner/søvn-aktivitet, dashboard med ukentlig trend, KitchenOwl-handleliste |
 | `docker-compose.yml` | Postgres 16.4 + backend + frontend, versjonspinnet images | Selvhostet drift |
 
 Husholdningen er en fast 2-brukers-modell (ingen åpen selvregistrering) med
@@ -79,8 +81,9 @@ ved `401`. Den eksponerer både lesing (oppskrifter, handleliste) og skriving
 
 `GET /reports/dashboard?days=7&weeks=4` returnerer, per bruker, et
 øyeblikksbilde (siste `days` dager) og en `weekly_trend`-serie med `weeks`
-ukes-bøtter (snitt vekt, væske/kaffe per dag, symptomtelling), til bruk for
-enkle trendgrafer i frontend.
+ukes-bøtter (snitt vekt, væske/kaffe per dag, symptomtelling). Frontend-
+dashboardet viser dette per bruker, med trendserien i en utvidbar tabell
+(`<details>`).
 
 ## Lokal utvikling
 
@@ -112,10 +115,10 @@ cd backend
 pytest -q
 ```
 
-Alle 22 tester (auth/passordpolicy, kjernemodeller for vekt/væske/kaffe/
-helseobservasjoner/søvn-aktivitet, dashboard-aggregering, KitchenOwl-adapter)
-skal passere. Testene kjører mot en SQLite in-memory-database og trenger
-ikke Postgres eller Docker.
+Alle 30 tester (auth/passordpolicy, kjernemodeller for vekt/væske/kaffe/
+helseobservasjoner/søvn-aktivitet, dashboard-aggregering inkl. ukentlig
+trend, KitchenOwl-adapter) skal passere. Testene kjører mot en SQLite
+in-memory-database og trenger ikke Postgres eller Docker.
 
 ### Frontend
 
@@ -144,7 +147,9 @@ Implementert:
 - Dashboard-/rapportendepunkt som aggregerer på tvers av områdene
 - KitchenOwl-adapter (grensesnitt mot separat selvhostet instans, ingen lokal duplisering av dens datamodell)
 - Docker Compose for backend + Postgres + frontend, versjonspinnet, uten hardkodede hemmeligheter
-- Minimal PWA-frontend (delt visning, ingen privat/delt-splitting)
+- PWA-frontend (delt visning, ingen privat/delt-splitting) med innlogging,
+  logg-skjemaer for alle livsområdene, dashboard med ukentlig trend og
+  KitchenOwl-handleliste-UI (vis/legg til/kvitter ut varer)
 - pytest-dekning for auth og kjernemodellene
 
 Bevisst utelatt (egen, senere fase per brief):
