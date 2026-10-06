@@ -7,7 +7,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.database import Base, engine
 from app.routers import auth, coffee, devices, fluids, health_observations, kitchenowl, reports, sleep_activity, weight
 
 settings = get_settings()
@@ -15,10 +14,10 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    # Dev/skeleton convenience: create tables if they don't exist yet.
-    # A real migration tool (Alembic) should replace this before the schema
-    # needs to evolve against data that must be preserved.
-    Base.metadata.create_all(bind=engine)
+    # Schema creation/evolution is handled by Alembic migrations
+    # (`alembic upgrade head`), run before the app starts (see the
+    # Dockerfile CMD and README "Database migrations" section), so no
+    # table creation happens here at app startup.
     yield
 
 

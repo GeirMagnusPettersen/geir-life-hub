@@ -1,6 +1,7 @@
 fastapi==0.118.0
 uvicorn[standard]==0.34.0
 sqlalchemy==2.0.36
+alembic==1.13.3
 psycopg[binary]==3.2.10
 passlib[argon2]==1.7.4
 argon2-cffi==23.1.0

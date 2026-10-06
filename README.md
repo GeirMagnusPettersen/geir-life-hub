@@ -48,9 +48,9 @@ konfigurert) i stedet for å feile tungt.
    ```
 
    Dette starter `db` (Postgres 16.4), `backend` (FastAPI på port 8000) og
-   `frontend` (statisk PWA via nginx på port 5173). Databasetabeller
-   opprettes automatisk ved oppstart av backend (`Base.metadata.create_all`).
-   For produksjon med ekte data bør dette etter hvert erstattes med Alembic-migrasjoner.
+   `frontend` (statisk PWA via nginx på port 5173). Databaseskjemaet
+   opprettes/oppdateres automatisk ved oppstart av backend-containeren via
+   `alembic upgrade head` (kjøres før `uvicorn` starter, se `backend/Dockerfile`).
 
 3. Opprett de to husholdningsbrukerne (kjøres inne i backend-containeren):
 
@@ -127,8 +127,35 @@ Kjør API-et lokalt mot en SQLite-fil (for rask iterasjon uten Postgres):
 ```powershell
 $env:DATABASE_URL = "sqlite:///./dev.db"
 $env:SESSION_SECRET_KEY = "dev-only-not-for-production"
+alembic upgrade head
 uvicorn app.main:app --reload
 ```
+
+### Database-migrasjoner (Alembic)
+
+Skjemaet er versjonert med [Alembic](https://alembic.sqlalchemy.org/) under
+`backend/migrations/`. `DATABASE_URL` (samme miljøvariabel som appen selv
+bruker) styrer hvilken database migrasjonene kjører mot – det finnes ingen
+hardkodet URL i `alembic.ini`.
+
+```powershell
+cd backend
+# Kjør alle migrasjoner mot databasen i $env:DATABASE_URL:
+alembic upgrade head
+
+# Etter en modellendring i app/models.py, generer en ny migrasjon:
+alembic revision --autogenerate -m "beskriv endringen"
+# ... inspiser den genererte filen i migrations/versions/ før commit ...
+
+# Rull tilbake én migrasjon:
+alembic downgrade -1
+```
+
+I Docker Compose kjøres `alembic upgrade head` automatisk som del av
+backend-containerens oppstart (før `uvicorn` starter), så Postgres-skjemaet
+holdes alltid oppdatert ved deploy. Testsuiten (`pytest`) bruker sin egen
+in-memory SQLite-database bygget direkte fra `Base.metadata` (se
+`tests/conftest.py`) og er uavhengig av Alembic-migrasjonene.
 
 Kjør testene:
 
@@ -173,6 +200,7 @@ Implementert:
   tilgjengelig her)
 - Dashboard-/rapportendepunkt som aggregerer på tvers av områdene
 - KitchenOwl-adapter (grensesnitt mot separat selvhostet instans, ingen lokal duplisering av dens datamodell)
+- Alembic-databasemigrasjoner (versjonert skjema, kjøres automatisk ved containeroppstart)
 - Docker Compose for backend + Postgres + frontend, versjonspinnet, uten hardkodede hemmeligheter
 - PWA-frontend (delt visning, ingen privat/delt-splitting) med innlogging,
   logg-skjemaer for alle livsområdene, dashboard med ukentlig trend og
