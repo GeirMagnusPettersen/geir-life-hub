@@ -69,6 +69,19 @@ Sett `KITCHENOWL_BASE_URL`, `KITCHENOWL_USERNAME`, `KITCHENOWL_PASSWORD` og
 selvhostet KitchenOwl-instans. La dem stå tomme for å kjøre uten
 oppskrifter/handleliste (endepunktene returnerer `503`).
 
+Klienten (`app/integrations/kitchenowl.py`) logger inn mot KitchenOwls
+`/auth/login` (JWT), cacher access-tokenet og logger inn på nytt automatisk
+ved `401`. Den eksponerer både lesing (oppskrifter, handleliste) og skriving
+(legge til vare på handlelista, kvittere ut en vare) via
+`/integrations/kitchenowl/*`.
+
+### Dashboard-rapport
+
+`GET /reports/dashboard?days=7&weeks=4` returnerer, per bruker, et
+øyeblikksbilde (siste `days` dager) og en `weekly_trend`-serie med `weeks`
+ukes-bøtter (snitt vekt, væske/kaffe per dag, symptomtelling), til bruk for
+enkle trendgrafer i frontend.
+
 ## Lokal utvikling
 
 ### Backend
