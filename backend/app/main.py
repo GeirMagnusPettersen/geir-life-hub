@@ -7,7 +7,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import auth, coffee, devices, fluids, health_observations, kitchenowl, reports, sleep_activity, weight
+from app.routers import (
+    assistant,
+    auth,
+    coffee,
+    devices,
+    fluids,
+    health_observations,
+    kitchenowl,
+    reports,
+    sleep_activity,
+    weight,
+)
 
 settings = get_settings()
 
@@ -46,3 +57,4 @@ app.include_router(health_observations.router)
 app.include_router(sleep_activity.router)
 app.include_router(reports.router)
 app.include_router(kitchenowl.router)
+app.include_router(assistant.router)

@@ -101,12 +101,39 @@ button:hover {
 }
 
 .log-forms,
-.kitchenowl {
+.kitchenowl,
+.assistant {
   background: white;
   border-radius: 0.5rem;
   padding: 1rem 1.25rem;
   margin-bottom: 1.5rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.assistant-history {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+  max-height: 18rem;
+  overflow-y: auto;
+}
+
+.assistant-msg {
+  padding: 0.35rem 0;
+  border-bottom: 1px solid #e3e8e5;
+}
+
+.assistant-msg-user strong {
+  color: #1f6f54;
+}
+
+#assistant-feedback {
+  min-height: 1.2rem;
+  color: #1f6f54;
+}
+
+#assistant-feedback.error {
+  color: #b3261e;
 }
 
 .log-forms-grid {

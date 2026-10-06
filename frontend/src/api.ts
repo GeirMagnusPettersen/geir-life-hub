@@ -79,6 +79,26 @@ export interface KitchenOwlShoppingListItem {
   [key: string]: unknown;
 }
 
+export interface AssistantStatus {
+  configured: boolean;
+}
+
+export interface AssistantChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface AssistantAddedItem {
+  name: string;
+  ok: boolean;
+  detail?: string | null;
+}
+
+export interface AssistantChatReply {
+  reply: string;
+  added_items: AssistantAddedItem[];
+}
+
 export const api = {
   login: (username: string, password: string) =>
     request<UserOut>("/auth/login", {
@@ -131,5 +151,11 @@ export const api = {
     request<KitchenOwlShoppingListItem>(`/integrations/kitchenowl/shopping-list/${itemId}`, {
       method: "PUT",
       body: JSON.stringify({ checked }),
+    }),
+  assistantStatus: () => request<AssistantStatus>("/assistant/status"),
+  assistantChat: (messages: AssistantChatMessage[]) =>
+    request<AssistantChatReply>("/assistant/chat", {
+      method: "POST",
+      body: JSON.stringify({ messages }),
     }),
 };

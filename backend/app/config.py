@@ -68,6 +68,18 @@ class Settings:
         self.kitchenowl_password: str | None = os.environ.get("KITCHENOWL_PASSWORD")
         self.kitchenowl_household_id: str | None = os.environ.get("KITCHENOWL_HOUSEHOLD_ID")
 
+        # Meal-assistant integration: lets a user discuss a dish/meal with an
+        # LLM and have the ingredients it settles on pushed straight to the
+        # KitchenOwl shopping list. Uses any OpenAI-compatible chat
+        # completions API (OpenAI itself, Azure OpenAI via a compatible
+        # proxy, a local model server, etc.) so the provider is swappable via
+        # env vars alone; no provider SDK is hard-wired into the app.
+        self.assistant_api_key: str | None = os.environ.get("ASSISTANT_API_KEY")
+        self.assistant_base_url: str = os.environ.get(
+            "ASSISTANT_BASE_URL", "https://api.openai.com/v1"
+        )
+        self.assistant_model: str = os.environ.get("ASSISTANT_MODEL", "gpt-4o-mini")
+
 
 @lru_cache
 def get_settings() -> Settings:

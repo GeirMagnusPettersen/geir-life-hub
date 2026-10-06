@@ -77,6 +77,32 @@ ved `401`. Den eksponerer både lesing (oppskrifter, handleliste) og skriving
 (legge til vare på handlelista, kvittere ut en vare) via
 `/integrations/kitchenowl/*`.
 
+### Måltidsassistent (chat → handleliste)
+
+`app/assistant/` er en tynn, LLM-drevet "måltidsassistent": brukeren fører en
+vanlig samtale om hva de skal lage mat, og modellen kan på eksplisitt
+forespørsel legge ingrediensene rett inn i KitchenOwl-handlelisten via
+adapteren over – uten at bruker manuelt må skrive inn hver vare.
+
+- `GET /assistant/status` → `{"configured": bool}`, brukes av frontend for å
+  vise en "ikke konfigurert ennå"-melding når `ASSISTANT_API_KEY` mangler.
+- `POST /assistant/chat` med `{"messages": [{"role": "user"|"assistant", "content": "..."}]}`
+  (klienten sender hele samtalehistorikken hver gang – backend er stateless)
+  → `{"reply": "...", "added_items": [{"name": "...", "ok": true, "detail": null}]}`.
+- Sett `ASSISTANT_API_KEY`, `ASSISTANT_BASE_URL` (default
+  `https://api.openai.com/v1`) og `ASSISTANT_MODEL` (default `gpt-4o-mini`) i
+  `.env` for å aktivere funksjonen. Alle OpenAI-kompatible chat-completions-
+  API-er (OpenAI selv, Azure OpenAI med kompatibel sti, lokale servere som
+  Ollama/LM Studio) kan brukes ved å peke `ASSISTANT_BASE_URL` dit. Uten
+  `ASSISTANT_API_KEY` svarer `/assistant/chat` `503` i stedet for å feile
+  tungt, og frontend skjuler chat-UI-et.
+- Modellen kaller et `add_shopping_list_items`-verktøy kun når brukeren
+  eksplisitt ber om å legge varer til handlelisten (systemprompten
+  instruerer den om dette), og bekrefter deretter hvilke varer som faktisk
+  ble lagt til (via KitchenOwl-adapteren) i svaret.
+- Krever at KitchenOwl-adapteren (over) er konfigurert, siden varene legges
+  til der.
+
 ### Dashboard-rapport
 
 `GET /reports/dashboard?days=7&weeks=4` returnerer, per bruker, et
@@ -371,6 +397,9 @@ Implementert:
   tilgjengelig her)
 - Dashboard-/rapportendepunkt som aggregerer på tvers av områdene
 - KitchenOwl-adapter (grensesnitt mot separat selvhostet instans, ingen lokal duplisering av dens datamodell)
+- Måltidsassistent: chat-grensesnitt (LLM tool-calling) som legger
+  ingredienser til KitchenOwl-handlelisten på forespørsel, krever en egen
+  API-nøkkel (`ASSISTANT_API_KEY`) for å aktiveres
 - Alembic-databasemigrasjoner (versjonert skjema, kjøres automatisk ved containeroppstart)
 - Docker Compose for backend + Postgres + frontend, versjonspinnet, uten hardkodede hemmeligheter
 - PWA-frontend (delt visning, ingen privat/delt-splitting) med innlogging,

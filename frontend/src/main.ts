@@ -1,5 +1,6 @@
 import {
   api,
+  type AssistantChatMessage,
   type DashboardReport,
   type KitchenOwlShoppingListItem,
   type UserReportSummary,
@@ -193,6 +194,111 @@ function renderKitchenOwlSection(): string {
       <div id="kitchenowl-content">Laster status...</div>
     </section>
   `;
+}
+
+function renderAssistantSection(): string {
+  return `
+    <section class="assistant">
+      <h2>Middagsassistent</h2>
+      <div id="assistant-content">Laster status...</div>
+    </section>
+  `;
+}
+
+const assistantHistory: AssistantChatMessage[] = [];
+
+function renderAssistantHistory(): string {
+  if (!assistantHistory.length) {
+    return "<p>Diskuter en middag, og be assistenten legge ingrediensene til handlelisten når du har bestemt deg.</p>";
+  }
+  return `
+    <ul class="assistant-history">
+      ${assistantHistory
+        .map(
+          (msg) => `
+            <li class="assistant-msg assistant-msg-${msg.role}">
+              <strong>${msg.role === "user" ? "Du" : "Assistent"}:</strong> ${msg.content}
+            </li>
+          `,
+        )
+        .join("")}
+    </ul>
+  `;
+}
+
+function renderAssistantChatUI(): string {
+  return `
+    <div id="assistant-history">${renderAssistantHistory()}</div>
+    <form id="assistant-form" class="log-form">
+      <label>
+        Melding
+        <input name="message" type="text" maxlength="4000" required placeholder="f.eks. jeg tenkte på taco i kveld" />
+      </label>
+      <button type="submit">Send</button>
+    </form>
+    <p id="assistant-feedback" role="status"></p>
+  `;
+}
+
+async function handleAssistantSubmit(event: SubmitEvent): Promise<void> {
+  event.preventDefault();
+  const form = event.currentTarget as HTMLFormElement;
+  const data = new FormData(form);
+  const text = String(data.get("message") ?? "").trim();
+  if (!text) return;
+
+  assistantHistory.push({ role: "user", content: text });
+  const historyEl = document.getElementById("assistant-history");
+  const feedbackEl = document.getElementById("assistant-feedback");
+  if (historyEl) historyEl.innerHTML = renderAssistantHistory();
+  form.reset();
+
+  try {
+    const reply = await api.assistantChat(assistantHistory);
+    assistantHistory.push({ role: "assistant", content: reply.reply });
+    if (historyEl) historyEl.innerHTML = renderAssistantHistory();
+    if (feedbackEl) {
+      feedbackEl.textContent = reply.added_items.length
+        ? `Lagt til handlelisten: ${reply.added_items
+            .filter((i) => i.ok)
+            .map((i) => i.name)
+            .join(", ")}`
+        : "";
+      feedbackEl.classList.remove("error");
+    }
+  } catch (err) {
+    console.error(err);
+    if (feedbackEl) {
+      feedbackEl.textContent = "Kunne ikke nå assistenten.";
+      feedbackEl.classList.add("error");
+    }
+  }
+}
+
+async function loadAssistantSection(): Promise<void> {
+  const container = document.getElementById("assistant-content");
+  if (!container) return;
+
+  try {
+    const status = await api.assistantStatus();
+    if (!status.configured) {
+      container.innerHTML = `
+        <p>
+          Middagsassistenten er ikke konfigurert ennå. Sett
+          <code>ASSISTANT_API_KEY</code> (og ev. <code>ASSISTANT_BASE_URL</code>/
+          <code>ASSISTANT_MODEL</code>) i backend-miljøet for å aktivere den.
+        </p>
+      `;
+      return;
+    }
+
+    container.innerHTML = renderAssistantChatUI();
+    const form = document.getElementById("assistant-form") as HTMLFormElement | null;
+    form?.addEventListener("submit", handleAssistantSubmit);
+  } catch (err) {
+    container.innerHTML = "<p>Kunne ikke laste assistentstatus.</p>";
+    console.error(err);
+  }
 }
 
 function setLogFeedback(message: string, isError = false): void {
@@ -405,6 +511,7 @@ async function renderDashboard(): Promise<void> {
         </section>
         ${renderLogForms()}
         ${renderKitchenOwlSection()}
+        ${renderAssistantSection()}
       </main>
     `;
 
@@ -417,6 +524,7 @@ async function renderDashboard(): Promise<void> {
       void refreshSummaries();
     });
     void loadKitchenOwlSection();
+    void loadAssistantSection();
   } catch (err) {
     console.error(err);
     renderLogin();
