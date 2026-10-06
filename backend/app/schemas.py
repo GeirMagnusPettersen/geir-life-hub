@@ -125,6 +125,17 @@ class SleepActivityOut(BaseModel):
 # --- Reports ----------------------------------------------------------------
 
 
+class WeeklyTrendPoint(BaseModel):
+    """One week's worth of aggregated data, oldest-to-newest in the trend list."""
+
+    week_start: date
+    week_end: date
+    avg_weight_kg: float | None = None
+    fluids_ml_per_day: float | None = None
+    coffee_cups_per_day: float | None = None
+    symptom_count: int = 0
+
+
 class UserReportSummary(BaseModel):
     user_id: str
     display_name: str
@@ -135,9 +146,11 @@ class UserReportSummary(BaseModel):
     health_observation_count: int = 0
     sleep_minutes_avg: float | None = None
     steps_avg: float | None = None
+    weekly_trend: list[WeeklyTrendPoint] = []
 
 
 class DashboardReport(BaseModel):
     period_days: int
+    trend_weeks: int
     generated_at: datetime
     users: list[UserReportSummary]
