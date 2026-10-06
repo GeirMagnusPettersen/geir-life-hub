@@ -11,6 +11,7 @@ htmlcov/
 # Node / frontend
 node_modules/
 dist/
+*.tsbuildinfo
 dist-ssr/
 *.local
 

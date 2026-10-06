@@ -1,0 +1,30 @@
+// Minimal service worker: enables installability and a basic offline
+// app-shell cache. Intentionally simple for this skeleton phase; a real
+// caching/update strategy can replace this later (e.g. Workbox).
+const CACHE_NAME = "lifehub-shell-v1";
+const APP_SHELL = ["/", "/index.html", "/manifest.json", "/icon.svg"];
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)),
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))),
+    ),
+  );
+  self.clients.claim();
+});
+
+self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET") {
+    return;
+  }
+  event.respondWith(
+    caches.match(event.request).then((cached) => cached ?? fetch(event.request)),
+  );
+});
