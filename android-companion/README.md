@@ -88,14 +88,18 @@ android-companion/
 
 ## Building
 
-> **Note:** this project was scaffolded in an environment without the
-> Android SDK or a JDK, so the build has **not** been executed or verified
-> here. The Gradle wrapper (`gradlew`/`gradlew.bat` + `gradle-wrapper.jar`,
-> Gradle 8.7) is included, along with Android Gradle Plugin 8.5.2 and Kotlin
-> 1.9.24, which are a known-compatible combination as of this writing. If a
-> newer AGP/Gradle/Kotlin combination is preferred, bump
-> `build.gradle.kts` (root) and `gradle/wrapper/gradle-wrapper.properties`
-> together and re-sync.
+> **Verified:** `./gradlew assembleDebug` has been run end-to-end (portable
+> JDK 17 + Android SDK API 34, no Android Studio) and produces a working
+> debug APK with zero compile errors. The Gradle wrapper (`gradlew`/
+> `gradlew.bat` + `gradle-wrapper.jar`, Gradle 8.7) is included, along with
+> Android Gradle Plugin 8.5.2 and Kotlin 1.9.24, which are a known-compatible
+> combination. The full login → device-token → Health-Connect-sync →
+> idempotent-re-sync flow has also been exercised directly against a live
+> instance of the backend (see "Backend contract" below) to confirm the
+> request/response shapes match exactly what `BackendApiClient.kt` sends.
+> What remains unverified from a development sandbox is the actual on-device
+> Health Connect permission prompt and real Garmin-synced data — that last
+> mile needs a physical Android phone or emulator.
 
 From the `android-companion/` directory, with Android Studio or the
 command line:
