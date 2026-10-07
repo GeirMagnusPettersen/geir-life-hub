@@ -17,7 +17,13 @@ from app.models import (
     User,
     WeightEntry,
 )
-from app.schemas import DashboardReport, UserReportSummary, WeeklyTrendPoint
+from app.schemas import (
+    DashboardReport,
+    SleepTrendPoint,
+    SleepTrendReport,
+    UserReportSummary,
+    WeeklyTrendPoint,
+)
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -67,8 +73,23 @@ def _build_weekly_trend(
             HealthObservation.recorded_at >= trend_start,
         )
     ).all()
+    sleep_rows = db.scalars(
+        select(SleepActivitySummary).where(
+            SleepActivitySummary.user_id == user_id,
+            SleepActivitySummary.summary_date >= trend_start.date(),
+        )
+    ).all()
 
     trend: list[WeeklyTrendPoint] = []
+    # Sleep summaries are stored as plain calendar dates (no time-of-day), so
+    # they can't be bucketed with the same half-open `[bucket_start, bucket_end)`
+    # datetime comparison used for timestamped entries above: that range is
+    # anchored to the current instant ("now"), which falls partway through
+    # today, so a strict "<" on `bucket_end.date()` would incorrectly exclude
+    # anything logged for today from the most recent bucket. Instead, bucket
+    # sleep rows into inclusive 7-day calendar-date windows anchored on
+    # today's date, with the most recent window ending today.
+    today = datetime.now(timezone.utc).date()
     for week_index in range(weeks):
         bucket_start = _as_naive(trend_start + timedelta(weeks=week_index))
         bucket_end = bucket_start + timedelta(weeks=1)
@@ -85,6 +106,21 @@ def _build_weekly_trend(
         symptom_count = sum(
             1 for h in health_rows if bucket_start <= _as_naive(h.recorded_at) < bucket_end
         )
+        weeks_from_end = weeks - 1 - week_index
+        sleep_bucket_end_date = today - timedelta(days=7 * weeks_from_end)
+        sleep_bucket_start_date = sleep_bucket_end_date - timedelta(days=6)
+        sleep_minutes_in_week = [
+            s.sleep_minutes
+            for s in sleep_rows
+            if s.sleep_minutes is not None
+            and sleep_bucket_start_date <= s.summary_date <= sleep_bucket_end_date
+        ]
+        resting_hr_in_week = [
+            s.resting_heart_rate
+            for s in sleep_rows
+            if s.resting_heart_rate is not None
+            and sleep_bucket_start_date <= s.summary_date <= sleep_bucket_end_date
+        ]
 
         trend.append(
             WeeklyTrendPoint(
@@ -94,6 +130,8 @@ def _build_weekly_trend(
                 fluids_ml_per_day=fluids_in_week / 7,
                 coffee_cups_per_day=coffee_in_week / 7,
                 symptom_count=symptom_count,
+                avg_sleep_minutes=mean(sleep_minutes_in_week) if sleep_minutes_in_week else None,
+                avg_resting_heart_rate=mean(resting_hr_in_week) if resting_hr_in_week else None,
             )
         )
 
@@ -185,4 +223,46 @@ def dashboard(
         trend_weeks=weeks,
         generated_at=datetime.now(timezone.utc),
         users=summaries,
+    )
+
+
+@router.get("/sleep-trend", response_model=SleepTrendReport)
+def sleep_trend(
+    days: int = 30,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+) -> SleepTrendReport:
+    """Daily sleep/heart-rate series across all household members.
+
+    Unlike `/dashboard`'s per-user single-window averages, this returns one
+    point per user per logged day over the window, so the frontend can draw
+    a sleep-duration/heart-rate-over-time graph for both users together
+    (shared view - see PROJECT_BRIEF.md section 3, no private/shared split).
+    """
+    since_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
+    users_by_id = {user.id: user.display_name for user in db.scalars(select(User))}
+
+    rows = db.scalars(
+        select(SleepActivitySummary)
+        .where(SleepActivitySummary.summary_date >= since_date)
+        .order_by(SleepActivitySummary.summary_date)
+    ).all()
+
+    points = [
+        SleepTrendPoint(
+            user_id=row.user_id,
+            display_name=users_by_id.get(row.user_id, "Ukjent"),
+            summary_date=row.summary_date,
+            sleep_minutes=row.sleep_minutes,
+            steps=row.steps,
+            resting_heart_rate=row.resting_heart_rate,
+            avg_heart_rate=row.avg_heart_rate,
+        )
+        for row in rows
+    ]
+
+    return SleepTrendReport(
+        period_days=days,
+        generated_at=datetime.now(timezone.utc),
+        points=points,
     )

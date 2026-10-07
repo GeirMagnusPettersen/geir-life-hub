@@ -480,9 +480,97 @@ button.secondary-btn:disabled {
   font-size: 0.85rem;
 }
 
-.sleep-history-steps {
+.sleep-history-steps,
+.sleep-history-hr {
   font-size: 0.75rem;
   color: #5c6b64;
+}
+
+.sleep-trend-section {
+  background: white;
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.sleep-trend-intro {
+  color: #5c6b64;
+  font-size: 0.9rem;
+  margin-top: -0.25rem;
+}
+
+.period-selector {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.75rem 0 1.25rem;
+  flex-wrap: wrap;
+}
+
+.period-btn {
+  background: transparent;
+  color: #1f6f54;
+  border: 1px solid #c7d0cc;
+}
+
+.period-btn.active {
+  background: #1f6f54;
+  color: white;
+  border-color: #1f6f54;
+}
+
+.chart-container {
+  margin-bottom: 1.5rem;
+}
+
+.chart-container h3 {
+  margin-bottom: 0.4rem;
+  font-size: 1rem;
+}
+
+.trend-chart {
+  width: 100%;
+  height: auto;
+  background: #f4f7f5;
+  border-radius: 0.5rem;
+}
+
+.chart-axis-line {
+  stroke: #c7d0cc;
+  stroke-width: 1;
+}
+
+.chart-axis-label {
+  fill: #5c6b64;
+  font-size: 9px;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #3c4a44;
+}
+
+.chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.chart-legend-swatch {
+  display: inline-block;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 999px;
+  border: 2px solid;
+}
+
+.chart-legend-swatch-dashed {
+  border-style: dashed;
+  border-radius: 0.15rem;
 }
 
 @media (max-width: 480px) {

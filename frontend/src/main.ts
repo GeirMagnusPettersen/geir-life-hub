@@ -4,6 +4,7 @@ import {
   type DashboardReport,
   type KitchenOwlShoppingListItem,
   type SleepActivityOut,
+  type SleepTrendPoint,
   type UserReportSummary,
 } from "./api";
 
@@ -86,6 +87,8 @@ function renderSummaryCard(user: UserReportSummary): string {
           <td>${point.fluids_ml_per_day !== null ? Math.round(point.fluids_ml_per_day) + " ml/d" : "–"}</td>
           <td>${point.coffee_cups_per_day !== null ? point.coffee_cups_per_day.toFixed(1) + "/d" : "–"}</td>
           <td>${point.symptom_count}</td>
+          <td>${point.avg_sleep_minutes !== null ? formatSleepDuration(Math.round(point.avg_sleep_minutes)) : "–"}</td>
+          <td>${point.avg_resting_heart_rate !== null ? Math.round(point.avg_resting_heart_rate) + " bpm" : "–"}</td>
         </tr>
       `,
     )
@@ -115,6 +118,8 @@ function renderSummaryCard(user: UserReportSummary): string {
                     <th>Væske</th>
                     <th>Kaffe</th>
                     <th>Symptomer</th>
+                    <th>Snitt søvn</th>
+                    <th>Hvilepuls</th>
                   </tr>
                 </thead>
                 <tbody>${trendRows}</tbody>
@@ -255,6 +260,9 @@ function renderSleepHistory(entries: SleepActivityOut[]): string {
                 <span class="sleep-history-steps">${
                   entry.steps !== null ? `${entry.steps.toLocaleString("nb-NO")} skritt` : "–"
                 }</span>
+                <span class="sleep-history-hr">${
+                  entry.resting_heart_rate !== null ? `${Math.round(entry.resting_heart_rate)} bpm (hvile)` : "–"
+                }</span>
               </div>
             </li>
           `;
@@ -274,6 +282,218 @@ async function loadSleepHistory(): Promise<void> {
     container.innerHTML = "<p>Kunne ikke laste søvnhistorikk.</p>";
     console.error(err);
   }
+}
+
+// ---- Sleep & heart rate trend chart (shared view, both users) ----
+
+interface ChartPoint {
+  date: string;
+  value: number | null;
+}
+
+interface ChartSeries {
+  label: string;
+  color: string;
+  dashed?: boolean;
+  points: ChartPoint[];
+}
+
+// Stable two-color palette reused for both users across both charts, so the
+// same person is always the same color in the duration and heart-rate charts.
+const USER_CHART_COLORS = ["#1f6f54", "#b5541f"];
+
+const CHART_WIDTH = 600;
+const CHART_HEIGHT = 180;
+const CHART_PADDING = { top: 12, right: 12, bottom: 24, left: 34 };
+
+// Hand-rolled SVG line chart (no charting library in this project). Renders
+// one or more series sharing a common date axis, with a simple min/max
+// y-scale and first/middle/last date labels.
+function buildLineChartSvg(series: ChartSeries[], unit: string): string {
+  const allDates = Array.from(new Set(series.flatMap((s) => s.points.map((p) => p.date)))).sort();
+  const allValues = series.flatMap((s) => s.points.map((p) => p.value)).filter((v): v is number => v !== null);
+
+  if (!allDates.length || !allValues.length) {
+    return "<p>Ingen data for valgt periode.</p>";
+  }
+
+  const minValue = Math.min(0, ...allValues);
+  const maxValue = Math.max(...allValues);
+  const valueRange = maxValue - minValue || 1;
+
+  const innerWidth = CHART_WIDTH - CHART_PADDING.left - CHART_PADDING.right;
+  const innerHeight = CHART_HEIGHT - CHART_PADDING.top - CHART_PADDING.bottom;
+  const dateIndex = new Map(allDates.map((d, i) => [d, i]));
+
+  const xForIndex = (i: number): number =>
+    CHART_PADDING.left + (allDates.length > 1 ? (i / (allDates.length - 1)) * innerWidth : innerWidth / 2);
+  const yForValue = (v: number): number =>
+    CHART_PADDING.top + innerHeight - ((v - minValue) / valueRange) * innerHeight;
+
+  const seriesSvg = series
+    .map((s) => {
+      const pts = s.points.filter((p): p is { date: string; value: number } => p.value !== null);
+      if (!pts.length) return "";
+      const path = pts
+        .map((p, idx) => {
+          const x = xForIndex(dateIndex.get(p.date)!).toFixed(1);
+          const y = yForValue(p.value).toFixed(1);
+          return `${idx === 0 ? "M" : "L"}${x},${y}`;
+        })
+        .join(" ");
+      const dashArray = s.dashed ? ' stroke-dasharray="4 3"' : "";
+      const dots = pts
+        .map((p) => {
+          const x = xForIndex(dateIndex.get(p.date)!).toFixed(1);
+          const y = yForValue(p.value).toFixed(1);
+          return `<circle cx="${x}" cy="${y}" r="2.5" fill="${s.color}"><title>${escapeHtml(
+            s.label,
+          )} – ${formatSummaryDate(p.date)}: ${p.value}${unit}</title></circle>`;
+        })
+        .join("");
+      return `<path d="${path}" fill="none" stroke="${s.color}" stroke-width="2"${dashArray} /> ${dots}`;
+    })
+    .join("");
+
+  const labelIndices = Array.from(
+    new Set(allDates.length > 1 ? [0, Math.floor((allDates.length - 1) / 2), allDates.length - 1] : [0]),
+  );
+  const xLabels = labelIndices
+    .map(
+      (i) =>
+        `<text x="${xForIndex(i).toFixed(1)}" y="${CHART_HEIGHT - 6}" class="chart-axis-label" text-anchor="middle">${formatSummaryDate(
+          allDates[i],
+        )}</text>`,
+    )
+    .join("");
+
+  const yLabels = `
+    <text x="2" y="${(CHART_PADDING.top + 4).toFixed(1)}" class="chart-axis-label">${Math.round(maxValue)}</text>
+    <text x="2" y="${(CHART_HEIGHT - CHART_PADDING.bottom).toFixed(1)}" class="chart-axis-label">${Math.round(minValue)}</text>
+  `;
+
+  return `
+    <svg viewBox="0 0 ${CHART_WIDTH} ${CHART_HEIGHT}" class="trend-chart" role="img" aria-label="Linjediagram over tid">
+      <line x1="${CHART_PADDING.left}" y1="${CHART_PADDING.top}" x2="${CHART_PADDING.left}" y2="${CHART_HEIGHT - CHART_PADDING.bottom}" class="chart-axis-line" />
+      <line x1="${CHART_PADDING.left}" y1="${CHART_HEIGHT - CHART_PADDING.bottom}" x2="${CHART_WIDTH - CHART_PADDING.right}" y2="${CHART_HEIGHT - CHART_PADDING.bottom}" class="chart-axis-line" />
+      ${yLabels}
+      ${xLabels}
+      ${seriesSvg}
+    </svg>
+    <div class="chart-legend">
+      ${series
+        .map(
+          (s) =>
+            `<span class="chart-legend-item"><span class="chart-legend-swatch${
+              s.dashed ? " chart-legend-swatch-dashed" : ""
+            }" style="background:${s.dashed ? "transparent" : s.color}; border-color:${s.color}"></span>${escapeHtml(
+              s.label,
+            )}</span>`,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+const SLEEP_TREND_PERIODS = [7, 30, 90] as const;
+let sleepTrendDays: number = 30;
+
+function renderSleepTrendSection(): string {
+  return `
+    <section class="sleep-trend-section">
+      <h2>Søvn og puls over tid</h2>
+      <p class="sleep-trend-intro">
+        Delt oversikt for hele husstanden, basert på søvndata synkronisert fra Health Connect.
+      </p>
+      <div class="period-selector" role="group" aria-label="Velg periode">
+        ${SLEEP_TREND_PERIODS.map(
+          (d) =>
+            `<button type="button" data-days="${d}" class="period-btn${
+              d === sleepTrendDays ? " active" : ""
+            }">${d} dager</button>`,
+        ).join("")}
+      </div>
+      <div class="chart-container">
+        <h3>Søvnvarighet</h3>
+        <div id="sleep-duration-chart">Laster...</div>
+      </div>
+      <div class="chart-container">
+        <h3>Puls (hvile – heltrukket, snitt – stiplet)</h3>
+        <div id="heart-rate-chart">Laster...</div>
+      </div>
+    </section>
+  `;
+}
+
+function groupSleepTrendByUser(points: SleepTrendPoint[]): Map<string, SleepTrendPoint[]> {
+  const byUser = new Map<string, SleepTrendPoint[]>();
+  for (const point of points) {
+    if (!byUser.has(point.user_id)) byUser.set(point.user_id, []);
+    byUser.get(point.user_id)!.push(point);
+  }
+  return byUser;
+}
+
+async function loadSleepTrendSection(days: number): Promise<void> {
+  sleepTrendDays = days;
+  const durationEl = document.getElementById("sleep-duration-chart");
+  const hrEl = document.getElementById("heart-rate-chart");
+  if (!durationEl || !hrEl) return;
+  durationEl.innerHTML = "Laster...";
+  hrEl.innerHTML = "Laster...";
+
+  try {
+    const trend = await api.sleepTrend(days);
+    const byUser = groupSleepTrendByUser(trend.points);
+    const userIds = Array.from(byUser.keys()).sort((a, b) =>
+      (usersById[a] ?? "").localeCompare(usersById[b] ?? "", "nb-NO"),
+    );
+    const colorFor = (userId: string): string =>
+      USER_CHART_COLORS[userIds.indexOf(userId) % USER_CHART_COLORS.length];
+
+    const durationSeries: ChartSeries[] = userIds.map((userId) => ({
+      label: usersById[userId] ?? "Ukjent",
+      color: colorFor(userId),
+      points: (byUser.get(userId) ?? []).map((p) => ({ date: p.summary_date, value: p.sleep_minutes })),
+    }));
+    durationEl.innerHTML = buildLineChartSvg(durationSeries, " min");
+
+    const hrSeries: ChartSeries[] = userIds.flatMap((userId) => {
+      const color = colorFor(userId);
+      const name = usersById[userId] ?? "Ukjent";
+      const pts = byUser.get(userId) ?? [];
+      return [
+        {
+          label: `${name} – hvilepuls`,
+          color,
+          points: pts.map((p) => ({ date: p.summary_date, value: p.resting_heart_rate })),
+        },
+        {
+          label: `${name} – snittpuls`,
+          color,
+          dashed: true,
+          points: pts.map((p) => ({ date: p.summary_date, value: p.avg_heart_rate })),
+        },
+      ];
+    });
+    hrEl.innerHTML = buildLineChartSvg(hrSeries, " bpm");
+  } catch (err) {
+    durationEl.innerHTML = "<p>Kunne ikke laste søvntrend.</p>";
+    hrEl.innerHTML = "";
+    console.error(err);
+  }
+}
+
+function wireSleepTrendPeriodButtons(): void {
+  document.querySelectorAll<HTMLButtonElement>(".period-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const days = Number(btn.dataset.days);
+      document
+        .querySelectorAll<HTMLButtonElement>(".period-btn")
+        .forEach((b) => b.classList.toggle("active", b === btn));
+      void loadSleepTrendSection(days);
+    });
+  });
 }
 
 function renderKitchenOwlSection(): string {
@@ -787,11 +1007,12 @@ async function refreshSummaries(): Promise<void> {
   }
 }
 
-type TabId = "assistant" | "overview" | "log";
+type TabId = "assistant" | "overview" | "sleep" | "log";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "assistant", label: "Middagsassistent" },
   { id: "overview", label: "Oversikt" },
+  { id: "sleep", label: "Søvn" },
   { id: "log", label: "Registrer" },
 ];
 
@@ -846,6 +1067,9 @@ async function renderDashboard(): Promise<void> {
             ${report.users.map(renderSummaryCard).join("")}
           </div>
         </section>
+        <section data-tab-panel="sleep" class="tab-panel" hidden>
+          ${renderSleepTrendSection()}
+        </section>
         <section data-tab-panel="log" class="tab-panel" hidden>
           ${renderLogForms()}
         </section>
@@ -865,6 +1089,8 @@ async function renderDashboard(): Promise<void> {
     void loadKitchenOwlSection();
     void loadAssistantSection();
     void loadSleepHistory();
+    wireSleepTrendPeriodButtons();
+    void loadSleepTrendSection(sleepTrendDays);
   } catch (err) {
     console.error(err);
     renderLogin();
