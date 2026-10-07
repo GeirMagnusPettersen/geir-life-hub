@@ -26,7 +26,15 @@ if config.config_file_name is not None:
 # Use the same DATABASE_URL env var the running app uses, rather than a
 # value hardcoded in alembic.ini, so migrations always target the real
 # configured database (dev/compose/CI can each set DATABASE_URL freely).
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+#
+# config.set_main_option() stores the value in a configparser section, which
+# interprets "%" as the start of an interpolation sequence. A DB password
+# containing a percent-encoded special character (e.g. "!" -> "%21") then
+# raises `ValueError: invalid interpolation syntax` and crashes the whole
+# container (alembic runs before uvicorn in the Docker CMD). Escape "%" as
+# "%%" so literal percent signs in the URL survive configparser untouched.
+database_url = get_settings().database_url
+config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
 target_metadata = Base.metadata
 

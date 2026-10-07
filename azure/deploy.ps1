@@ -193,6 +193,19 @@ $DatabaseUrl = "postgresql+psycopg" + "://" + $PgAdminUser + ":" + $PgAdminPassw
 # ---- Secrets ----------------------------------------------------------------
 $SessionSecret = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 48 | ForEach-Object { [char]$_ })
 
+# ---- Optional meal assistant (chat) config ---------------------------------
+# The assistant/chat feature is OFF unless $env:ASSISTANT_API_KEY is set in
+# the shell running this script (never hardcode a key here). Defaults target
+# Groq's free-tier OpenAI-compatible API; override $env:ASSISTANT_BASE_URL /
+# $env:ASSISTANT_MODEL for a different OpenAI-compatible provider (e.g. xAI's
+# Grok at https://api.x.ai/v1).
+$AssistantApiKey = $env:ASSISTANT_API_KEY
+$AssistantBaseUrl = if ($env:ASSISTANT_BASE_URL) { $env:ASSISTANT_BASE_URL } else { "https://api.groq.com/openai/v1" }
+$AssistantModel = if ($env:ASSISTANT_MODEL) { $env:ASSISTANT_MODEL } else { "llama-3.3-70b-versatile" }
+if (-not $AssistantApiKey) {
+    Write-Host "`n(ASSISTANT_API_KEY not set in this shell -- meal assistant chat will stay disabled. Set `$env:ASSISTANT_API_KEY before re-running to enable it.)" -ForegroundColor Yellow
+}
+
 # ---- Backend container app (built from ./backend via its Dockerfile) -----
 Write-Host "`n==> Building backend image via ACR (this can take a few minutes)" -ForegroundColor Cyan
 az acr build `
@@ -204,6 +217,18 @@ az acr build `
 
 Write-Host "`n==> Deploying backend container app" -ForegroundColor Cyan
 Remove-FailedContainerApp -Name $BackendAppName -ResourceGroup $ResourceGroup
+$BackendEnvVars = @(
+    "ENVIRONMENT=production",
+    "DATABASE_URL=$DatabaseUrl",
+    "SESSION_SECRET_KEY=$SessionSecret",
+    "MIN_PASSWORD_LENGTH=10",
+    "CORS_ORIGINS=*"
+)
+if ($AssistantApiKey) {
+    $BackendEnvVars += "ASSISTANT_API_KEY=$AssistantApiKey"
+    $BackendEnvVars += "ASSISTANT_BASE_URL=$AssistantBaseUrl"
+    $BackendEnvVars += "ASSISTANT_MODEL=$AssistantModel"
+}
 az containerapp up `
     --name $BackendAppName `
     --resource-group $ResourceGroup `
@@ -214,12 +239,7 @@ az containerapp up `
     --registry-password $AcrPassword `
     --ingress external `
     --target-port 8000 `
-    --env-vars `
-        "ENVIRONMENT=production" `
-        "DATABASE_URL=$DatabaseUrl" `
-        "SESSION_SECRET_KEY=$SessionSecret" `
-        "MIN_PASSWORD_LENGTH=10" `
-        "CORS_ORIGINS=*"
+    --env-vars $BackendEnvVars
 
 $BackendFqdn = az containerapp show --name $BackendAppName --resource-group $ResourceGroup --query "properties.configuration.ingress.fqdn" -o tsv
 $BackendUrl = "https://$BackendFqdn"
