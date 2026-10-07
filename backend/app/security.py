@@ -19,7 +19,16 @@ class PasswordPolicyError(ValueError):
     """Raised when a password does not meet the minimum server-side policy."""
 
 
-def validate_password_policy(password: str, min_length: int) -> None:
+def validate_password_policy(password: str, min_length: int, enforce: bool = True) -> None:
+    """Check the minimum-length policy.
+
+    `enforce=False` is used for local development (ENVIRONMENT != production)
+    so any password can be set when provisioning/resetting test accounts on
+    a local docker-compose stack. The policy is always enforced in
+    production regardless of this flag's default.
+    """
+    if not enforce:
+        return
     if len(password) < min_length:
         raise PasswordPolicyError(
             f"Password must be at least {min_length} characters long."

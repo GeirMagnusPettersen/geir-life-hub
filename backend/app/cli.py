@@ -6,7 +6,9 @@ endpoint, so accounts are created out-of-band:
     python -m app.cli create-user --username geir --display-name Geir
 
 The command prompts for a password (hidden input) and enforces the same
-MIN_PASSWORD_LENGTH policy as the API.
+MIN_PASSWORD_LENGTH policy as the API -- but only when ENVIRONMENT=production.
+When running locally (the default), any password is accepted so local
+docker-compose/dev accounts can use short, throwaway test passwords.
 """
 from __future__ import annotations
 
@@ -23,7 +25,7 @@ from app.security import PasswordPolicyError, hash_password, validate_password_p
 def create_user(username: str, display_name: str, password: str) -> None:
     settings = get_settings()
     try:
-        validate_password_policy(password, settings.min_password_length)
+        validate_password_policy(password, settings.min_password_length, enforce=settings.is_production)
     except PasswordPolicyError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
@@ -46,7 +48,7 @@ def create_user(username: str, display_name: str, password: str) -> None:
 def reset_password(username: str, password: str) -> None:
     settings = get_settings()
     try:
-        validate_password_policy(password, settings.min_password_length)
+        validate_password_policy(password, settings.min_password_length, enforce=settings.is_production)
     except PasswordPolicyError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
