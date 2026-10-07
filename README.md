@@ -244,9 +244,20 @@ adapteren over – uten at bruker manuelt må skrive inn hver vare.
 
 `GET /reports/dashboard?days=7&weeks=4` returnerer, per bruker, et
 øyeblikksbilde (siste `days` dager) og en `weekly_trend`-serie med `weeks`
-ukes-bøtter (snitt vekt, væske/kaffe per dag, symptomtelling). Frontend-
-dashboardet viser dette per bruker, med trendserien i en utvidbar tabell
-(`<details>`).
+ukes-bøtter (snitt vekt, væske/kaffe per dag, symptomtelling, snitt
+søvnvarighet og hvilepuls). Frontend-dashboardet viser dette per bruker, med
+trendserien i en utvidbar tabell (`<details>`).
+
+### Søvn-/pulstrend
+
+`GET /reports/sleep-trend?days=30` returnerer en delt (ikke bruker-splittet
+i responsen, men med `user_id`/`display_name` per punkt) daglig tidsserie
+for søvnvarighet, skritt, hvilepuls og snittpuls på tvers av begge brukere
+– kildedataen er den samme `SleepActivitySummary` som synkes inn fra Health
+Connect via `/sleep-activity/sync`. Frontend-dashboardet viser dette i en
+egen "Søvn"-fane med to hånd-tegnede SVG-linjediagrammer (søvnvarighet og
+puls, én linje per bruker, hvilepuls heltrukket/snittpuls stiplet) og en
+periodevelger (7/30/90 dager).
 
 ## Kom i gang (skyhosting)
 
@@ -423,11 +434,11 @@ cd backend
 pytest -q
 ```
 
-Alle 37 tester (auth/passordpolicy, kjernemodeller for vekt/væske/kaffe/
+Alle 65 tester (auth/passordpolicy, kjernemodeller for vekt/væske/kaffe/
 helseobservasjoner/søvn-aktivitet, enhetstoken-administrasjon, Health
-Connect-synk-kontrakten, dashboard-aggregering inkl. ukentlig trend,
-KitchenOwl-adapter) skal passere. Testene kjører mot en SQLite
-in-memory-database og trenger ikke Postgres eller Docker.
+Connect-synk-kontrakten, dashboard-aggregering inkl. ukentlig trend og
+søvn/puls-tidsserie, KitchenOwl-adapter) skal passere. Testene kjører mot en
+SQLite in-memory-database og trenger ikke Postgres eller Docker.
 
 ### Frontend
 
@@ -457,7 +468,9 @@ Implementert:
   backend-kontrakt for den fremtidige Health Connect Android-companionen
   (selve Android-appen er ikke bygget – krever Android-verktøy som ikke er
   tilgjengelig her)
-- Dashboard-/rapportendepunkt som aggregerer på tvers av områdene
+- Dashboard-/rapportendepunkt som aggregerer på tvers av områdene, inkludert
+  et eget `/reports/sleep-trend`-endepunkt med daglig søvnvarighet og
+  hvile-/snittpuls per bruker for en valgfri periode (standard 30 dager)
 - KitchenOwl-adapter (grensesnitt mot separat selvhostet instans, ingen lokal duplisering av dens datamodell)
 - Måltidsassistent: chat-grensesnitt (LLM tool-calling) som legger
   ingredienser til KitchenOwl-handlelisten på forespørsel, krever en egen
@@ -466,7 +479,10 @@ Implementert:
 - Docker Compose for backend + Postgres + frontend, versjonspinnet, uten hardkodede hemmeligheter
 - PWA-frontend (delt visning, ingen privat/delt-splitting) med innlogging,
   logg-skjemaer for alle livsområdene, dashboard med ukentlig trend og
-  KitchenOwl-handleliste-UI (vis/legg til/kvitter ut varer)
+  KitchenOwl-handleliste-UI (vis/legg til/kvitter ut varer), samt en egen
+  "Søvn"-fane med linjediagrammer (hånd-tegnet SVG, ingen ekstern
+  grafbibliotek) over søvnvarighet og hvile-/snittpuls for begge brukere
+  over tid, med periodevelger (7/30/90 dager)
 - pytest-dekning for auth og kjernemodellene
 
 Bevisst utelatt (egen, senere fase per brief):
