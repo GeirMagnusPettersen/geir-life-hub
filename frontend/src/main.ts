@@ -266,6 +266,11 @@ async function handleAssistantSubmit(event: SubmitEvent): Promise<void> {
         : "";
       feedbackEl.classList.remove("error");
     }
+    // Refresh the shopping list widget so confirmed items show up immediately,
+    // without requiring a manual page reload.
+    if (reply.added_items.some((i) => i.ok)) {
+      await loadKitchenOwlSection();
+    }
   } catch (err) {
     console.error(err);
     if (feedbackEl) {
