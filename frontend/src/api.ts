@@ -37,6 +37,8 @@ export interface WeeklyTrendPoint {
   fluids_ml_per_day: number | null;
   coffee_cups_per_day: number | null;
   symptom_count: number;
+  avg_sleep_minutes: number | null;
+  avg_resting_heart_rate: number | null;
 }
 
 export interface UserReportSummary {
@@ -65,7 +67,25 @@ export interface SleepActivityOut {
   summary_date: string;
   sleep_minutes: number | null;
   steps: number | null;
+  resting_heart_rate: number | null;
+  avg_heart_rate: number | null;
   source: string;
+}
+
+export interface SleepTrendPoint {
+  user_id: string;
+  display_name: string;
+  summary_date: string;
+  sleep_minutes: number | null;
+  steps: number | null;
+  resting_heart_rate: number | null;
+  avg_heart_rate: number | null;
+}
+
+export interface SleepTrendReport {
+  period_days: number;
+  generated_at: string;
+  points: SleepTrendPoint[];
 }
 
 export interface HealthObservationOut {
@@ -152,6 +172,8 @@ export const api = {
     }),
   listSleepActivity: (limit = 14) =>
     request<SleepActivityOut[]>(`/sleep-activity?limit=${limit}`),
+  sleepTrend: (days = 30) =>
+    request<SleepTrendReport>(`/reports/sleep-trend?days=${days}`),
   kitchenowlStatus: () => request<KitchenOwlStatus>("/integrations/kitchenowl/status"),
   kitchenowlShoppingList: () =>
     request<KitchenOwlShoppingListItem[]>("/integrations/kitchenowl/shopping-list"),
