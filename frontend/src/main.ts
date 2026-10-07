@@ -145,6 +145,20 @@ function renderLogForms(): string {
           <button type="submit">Lagre vekt</button>
         </form>
 
+        <form id="weight-import-form" class="log-form">
+          <h3>Importer vekt fra Vektklubb (CSV)</h3>
+          <p class="log-form-hint">
+            Last opp en CSV-eksport fra Vektklubb (eller tilsvarende) for å legge inn
+            historiske vektmålinger manuelt. Kolonner for dato og vekt gjenkjennes
+            automatisk (norsk eller engelsk).
+          </p>
+          <label>
+            CSV-fil
+            <input name="file" type="file" accept=".csv,text/csv" required />
+          </label>
+          <button type="submit">Importer</button>
+        </form>
+
         <form id="fluid-form" class="log-form">
           <h3>Væske</h3>
           <label>
@@ -538,6 +552,34 @@ function wireLogForms(onLogged: () => void): void {
       onLogged();
     } catch (err) {
       setLogFeedback("Kunne ikke lagre vekt.", true);
+      console.error(err);
+    }
+  });
+
+  const weightImportForm = document.getElementById("weight-import-form") as HTMLFormElement;
+  weightImportForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const fileInput = weightImportForm.querySelector<HTMLInputElement>('input[name="file"]');
+    const file = fileInput?.files?.[0];
+    if (!file) {
+      setLogFeedback("Velg en CSV-fil først.", true);
+      return;
+    }
+    try {
+      const result = await api.importWeightCsv(file);
+      if (result.errors.length > 0) {
+        setLogFeedback(
+          `Importerte ${result.imported} rad(er), hoppet over ${result.skipped}. Se konsoll for detaljer.`,
+          result.imported === 0,
+        );
+        console.warn("Weight import errors:", result.errors);
+      } else {
+        setLogFeedback(`Importerte ${result.imported} rad(er) fra Vektklubb.`);
+      }
+      weightImportForm.reset();
+      onLogged();
+    } catch (err) {
+      setLogFeedback("Kunne ikke importere CSV-fil.", true);
       console.error(err);
     }
   });

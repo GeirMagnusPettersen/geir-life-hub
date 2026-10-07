@@ -110,6 +110,17 @@ export interface AssistantChatReply {
   cleared_list: boolean;
 }
 
+export interface WeightImportError {
+  row: number;
+  reason: string;
+}
+
+export interface WeightImportResult {
+  imported: number;
+  skipped: number;
+  errors: WeightImportError[];
+}
+
 export const api = {
   login: (username: string, password: string) =>
     request<UserOut>("/auth/login", {
@@ -125,6 +136,26 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ weight_kg: weightKg, note: note || null }),
     }),
+  // Manual fallback for Vektklubb weight history: Life Hub has no live
+  // Vektklubb API integration, so a CSV exported from Vektklubb (or any
+  // similar spreadsheet) is uploaded here and parsed on the backend. This
+  // bypasses the shared JSON `request()` helper because file uploads must
+  // use multipart/form-data with a browser-generated boundary, not an
+  // explicit `Content-Type: application/json` header.
+  importWeightCsv: async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await fetch(`${API_BASE_URL}/weight/import`, {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => response.statusText);
+      throw new Error(`${response.status}: ${detail}`);
+    }
+    return (await response.json()) as WeightImportResult;
+  },
   logFluid: (amountMl: number, fluidType: "water" | "other" = "water") =>
     request("/fluids", {
       method: "POST",
