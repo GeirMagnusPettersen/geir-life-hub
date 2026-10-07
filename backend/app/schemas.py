@@ -226,6 +226,8 @@ class WeeklyTrendPoint(BaseModel):
     fluids_ml_per_day: float | None = None
     coffee_cups_per_day: float | None = None
     symptom_count: int = 0
+    avg_sleep_minutes: float | None = None
+    avg_resting_heart_rate: float | None = None
 
 
 class UserReportSummary(BaseModel):
@@ -246,3 +248,26 @@ class DashboardReport(BaseModel):
     trend_weeks: int
     generated_at: datetime
     users: list[UserReportSummary]
+
+
+class SleepTrendPoint(BaseModel):
+    """One day's sleep/heart-rate reading for one user.
+
+    Returned as a flat, per-user/per-day list (not bucketed) so the frontend
+    can plot a combined time series for both household members on one shared
+    graph, consistent with the no private/shared split data model.
+    """
+
+    user_id: str
+    display_name: str
+    summary_date: date
+    sleep_minutes: int | None = None
+    steps: int | None = None
+    resting_heart_rate: int | None = None
+    avg_heart_rate: int | None = None
+
+
+class SleepTrendReport(BaseModel):
+    period_days: int
+    generated_at: datetime
+    points: list[SleepTrendPoint]
