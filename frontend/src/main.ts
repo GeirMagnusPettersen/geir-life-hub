@@ -3,6 +3,7 @@ import {
   type AssistantChatMessage,
   type DashboardReport,
   type KitchenOwlShoppingListItem,
+  type SleepActivityOut,
   type UserReportSummary,
 } from "./api";
 
@@ -14,6 +15,27 @@ if (!app) {
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+// Maps user_id -> display_name, kept up to date whenever the dashboard
+// report is (re)loaded, so the sleep history list can attribute entries to
+// a person even though the API itself only returns the raw user_id.
+let usersById: Record<string, string> = {};
+
+function formatSleepDuration(minutes: number | null): string {
+  if (minutes === null || minutes === undefined) return "–";
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return mins ? `${hours}t ${mins}min` : `${hours}t`;
+}
+
+function formatSummaryDate(isoDate: string): string {
+  const date = new Date(`${isoDate}T00:00:00`);
+  return new Intl.DateTimeFormat("nb-NO", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }).format(date);
 }
 
 function renderLogin(): void {
@@ -183,8 +205,61 @@ function renderLogForms(): string {
         </form>
       </div>
       <p id="log-feedback" role="status"></p>
+      <section class="sleep-history-section">
+        <h3>Siste søvn/aktivitet</h3>
+        <div id="sleep-history">Laster...</div>
+      </section>
     </section>
   `;
+}
+
+const SLEEP_BAR_MAX_MINUTES = 600; // 10h, used only to scale the visual bar
+
+function renderSleepHistory(entries: SleepActivityOut[]): string {
+  if (!entries.length) {
+    return "<p>Ingen søvndata registrert ennå.</p>";
+  }
+  return `
+    <ul class="sleep-history-list">
+      ${entries
+        .map((entry) => {
+          const barPct = entry.sleep_minutes
+            ? Math.min(100, Math.round((entry.sleep_minutes / SLEEP_BAR_MAX_MINUTES) * 100))
+            : 0;
+          const who = escapeHtml(usersById[entry.user_id] ?? "Ukjent");
+          return `
+            <li class="sleep-history-row">
+              <div class="sleep-history-meta">
+                <span class="sleep-history-date">${formatSummaryDate(entry.summary_date)}</span>
+                <span class="sleep-history-who">${who}</span>
+              </div>
+              <div class="sleep-history-bar-track" title="${formatSleepDuration(entry.sleep_minutes)}">
+                <div class="sleep-history-bar" style="width: ${barPct}%"></div>
+              </div>
+              <div class="sleep-history-values">
+                <span class="sleep-history-duration">${formatSleepDuration(entry.sleep_minutes)}</span>
+                <span class="sleep-history-steps">${
+                  entry.steps !== null ? `${entry.steps.toLocaleString("nb-NO")} skritt` : "–"
+                }</span>
+              </div>
+            </li>
+          `;
+        })
+        .join("")}
+    </ul>
+  `;
+}
+
+async function loadSleepHistory(): Promise<void> {
+  const container = document.getElementById("sleep-history");
+  if (!container) return;
+  try {
+    const entries = await api.listSleepActivity(14);
+    container.innerHTML = renderSleepHistory(entries);
+  } catch (err) {
+    container.innerHTML = "<p>Kunne ikke laste søvnhistorikk.</p>";
+    console.error(err);
+  }
 }
 
 function renderKitchenOwlSection(): string {
@@ -553,6 +628,7 @@ async function refreshSummaries(): Promise<void> {
   if (!summariesEl) return;
   try {
     const report = await loadDashboardData();
+    usersById = Object.fromEntries(report.users.map((u) => [u.user_id, u.display_name]));
     summariesEl.innerHTML = report.users.map(renderSummaryCard).join("");
   } catch (err) {
     console.error(err);
@@ -599,6 +675,7 @@ async function renderDashboard(): Promise<void> {
   try {
     const me = await api.me();
     const report = await loadDashboardData();
+    usersById = Object.fromEntries(report.users.map((u) => [u.user_id, u.display_name]));
 
     app!.innerHTML = `
       <main class="dashboard">
@@ -631,9 +708,11 @@ async function renderDashboard(): Promise<void> {
     wireNav();
     wireLogForms(() => {
       void refreshSummaries();
+      void loadSleepHistory();
     });
     void loadKitchenOwlSection();
     void loadAssistantSection();
+    void loadSleepHistory();
   } catch (err) {
     console.error(err);
     renderLogin();

@@ -59,6 +59,15 @@ export interface DashboardReport {
   users: UserReportSummary[];
 }
 
+export interface SleepActivityOut {
+  id: string;
+  user_id: string;
+  summary_date: string;
+  sleep_minutes: number | null;
+  steps: number | null;
+  source: string;
+}
+
 export interface HealthObservationOut {
   id: string;
   user_id: string;
@@ -140,6 +149,8 @@ export const api = {
         source: "manual",
       }),
     }),
+  listSleepActivity: (limit = 14) =>
+    request<SleepActivityOut[]>(`/sleep-activity?limit=${limit}`),
   kitchenowlStatus: () => request<KitchenOwlStatus>("/integrations/kitchenowl/status"),
   kitchenowlShoppingList: () =>
     request<KitchenOwlShoppingListItem[]>("/integrations/kitchenowl/shopping-list"),
