@@ -71,14 +71,22 @@ class Settings:
         # Meal-assistant integration: lets a user discuss a dish/meal with an
         # LLM and have the ingredients it settles on pushed straight to the
         # KitchenOwl shopping list. Uses any OpenAI-compatible chat
-        # completions API (OpenAI itself, Azure OpenAI via a compatible
-        # proxy, a local model server, etc.) so the provider is swappable via
+        # completions API (OpenAI, Azure OpenAI via a compatible proxy, a
+        # local model server, Groq, etc.) so the provider is swappable via
         # env vars alone; no provider SDK is hard-wired into the app.
+        #
+        # Default provider is Groq: it has a genuinely free tier (no credit
+        # card, ~1000 requests/day as of 2026) with an OpenAI-compatible
+        # endpoint, which fits this project's self-hosted/no-cost goals
+        # better than a paid-by-default provider. Override any of these via
+        # env vars to point at a different provider.
         self.assistant_api_key: str | None = os.environ.get("ASSISTANT_API_KEY")
         self.assistant_base_url: str = os.environ.get(
-            "ASSISTANT_BASE_URL", "https://api.openai.com/v1"
+            "ASSISTANT_BASE_URL", "https://api.groq.com/openai/v1"
         )
-        self.assistant_model: str = os.environ.get("ASSISTANT_MODEL", "gpt-4o-mini")
+        self.assistant_model: str = os.environ.get(
+            "ASSISTANT_MODEL", "llama-3.3-70b-versatile"
+        )
 
 
 @lru_cache

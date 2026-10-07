@@ -90,10 +90,14 @@ adapteren over – uten at bruker manuelt må skrive inn hver vare.
   (klienten sender hele samtalehistorikken hver gang – backend er stateless)
   → `{"reply": "...", "added_items": [{"name": "...", "ok": true, "detail": null}]}`.
 - Sett `ASSISTANT_API_KEY`, `ASSISTANT_BASE_URL` (default
-  `https://api.openai.com/v1`) og `ASSISTANT_MODEL` (default `gpt-4o-mini`) i
-  `.env` for å aktivere funksjonen. Alle OpenAI-kompatible chat-completions-
-  API-er (OpenAI selv, Azure OpenAI med kompatibel sti, lokale servere som
-  Ollama/LM Studio) kan brukes ved å peke `ASSISTANT_BASE_URL` dit. Uten
+  `https://api.groq.com/openai/v1`) og `ASSISTANT_MODEL` (default
+  `llama-3.3-70b-versatile`) i `.env` for å aktivere funksjonen. Default-
+  leverandøren er valgt til [Groq](https://console.groq.com/keys) fordi den
+  har et reelt gratis nivå (ingen kredittkort, ~1000 forespørsler/dag) som
+  passer prosjektets selvhostede/no-cost-mål bedre enn en betalt-som-standard
+  leverandør. Alle OpenAI-kompatible chat-completions-API-er (OpenAI selv,
+  Azure OpenAI med kompatibel sti, lokale servere som Ollama/LM Studio) kan
+  likevel brukes ved å overstyre `ASSISTANT_BASE_URL`/`ASSISTANT_MODEL`. Uten
   `ASSISTANT_API_KEY` svarer `/assistant/chat` `503` i stedet for å feile
   tungt, og frontend skjuler chat-UI-et.
 - Modellen kaller et `add_shopping_list_items`-verktøy kun når brukeren
