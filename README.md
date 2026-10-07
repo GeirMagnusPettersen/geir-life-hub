@@ -101,10 +101,58 @@ selvhostet KitchenOwl-instans. La dem stå tomme for å kjøre uten
 oppskrifter/handleliste (endepunktene returnerer `503`).
 
 Klienten (`app/integrations/kitchenowl.py`) logger inn mot KitchenOwls
-`/auth/login` (JWT), cacher access-tokenet og logger inn på nytt automatisk
+`/auth` (JWT), cacher access-tokenet og logger inn på nytt automatisk
 ved `401`. Den eksponerer både lesing (oppskrifter, handleliste) og skriving
 (legge til vare på handlelista, kvittere ut en vare) via
 `/integrations/kitchenowl/*`.
+
+#### Kjøre en lokal KitchenOwl-instans (valgfritt, for testing uten egen server)
+
+`docker-compose.yml` har en valgfri `kitchenowl`-profil som starter en full,
+lokal KitchenOwl-stack (`kitchenowl-backend` + `kitchenowl-frontend`, pinnet
+`v0.7.10`) ved siden av Life Hub, uten at du trenger en separat selvhostet
+server bare for å prøve integrasjonen:
+
+```powershell
+$env:PATH += ";C:\Program Files\Docker\Docker\resources\bin"  # om nødvendig
+docker compose --profile kitchenowl up -d --build backend kitchenowl-backend kitchenowl-frontend
+```
+
+> **Viktig:** `kitchenowl-backend` sin egen port snakker rått uWSGI-protokoll,
+> ikke HTTP – treff mot den direkte (f.eks. `curl` mot port 5001) henger eller
+> feiler stille. `kitchenowl-frontend` (nginx, port 5002) er inngangspunktet:
+> den reverse-proxyer `/api/*` til backend-en over HTTP. Sett derfor
+> `KITCHENOWL_BASE_URL=http://kitchenowl-frontend/api` (internt Docker-nettverksnavn,
+> `/api`-prefiks påkrevd siden adapterens stier er relative til denne URL-en).
+
+Første gang: KitchenOwl har ingen selvregistrering som standard, så bruk
+onboarding-endepunktet til å opprette første bruker, og opprett deretter en
+husholdning:
+
+```powershell
+# Opprett første KitchenOwl-bruker (kun mulig når ingen brukere finnes fra før):
+curl.exe -s -X POST http://localhost:5002/api/onboarding `
+  -H "Content-Type: application/json" `
+  -d '{"username":"lifehub","password":"<ditt-passord>","name":"Life Hub"}'
+
+# Logg inn og lagre access_token fra svaret:
+curl.exe -s -X POST http://localhost:5002/api/auth `
+  -H "Content-Type: application/json" `
+  -d '{"username":"lifehub","password":"<ditt-passord>"}'
+
+# Opprett en husholdning (bruk access_token fra forrige steg):
+curl.exe -s -X POST http://localhost:5002/api/household `
+  -H "Content-Type: application/json" -H "Authorization: Bearer <access_token>" `
+  -d '{"name":"Geir Life Hub"}'
+# -> responsen inneholder "id" - bruk denne som KITCHENOWL_HOUSEHOLD_ID
+```
+
+Sett deretter `KITCHENOWL_USERNAME`/`KITCHENOWL_PASSWORD` til kontoen du
+opprettet, `KITCHENOWL_HOUSEHOLD_ID` til husholdnings-ID-en fra svaret over,
+generer en `KITCHENOWL_JWT_SECRET_KEY` (`python -c "import secrets; print(secrets.token_hex(32))"`)
+og start Life Hub-backenden på nytt (`docker compose up -d --force-recreate backend`).
+KitchenOwls egen web-UI er tilgjengelig på <http://localhost:5002> hvis du vil
+se/administrere handlelisten direkte.
 
 ### Måltidsassistent (chat → handleliste)
 
