@@ -71,6 +71,18 @@ def kitchenowl_update_shopping_list_item(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.delete("/shopping-list")
+def kitchenowl_clear_shopping_list(
+    client: KitchenOwlClient = Depends(get_kitchenowl_client),
+    _user: User = Depends(get_current_user),
+) -> dict[str, int]:
+    try:
+        removed = client.clear_shopping_list()
+    except KitchenOwlNotConfiguredError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"removed": removed}
+
+
 @router.get("/recipes")
 def kitchenowl_recipes(
     client: KitchenOwlClient = Depends(get_kitchenowl_client),

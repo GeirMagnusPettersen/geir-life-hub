@@ -91,7 +91,7 @@ class _StubLlmClient:
         return self._responses.pop(0)
 
 
-def _kitchenowl_mock_client(monkeypatch) -> KitchenOwlClient:
+def _kitchenowl_mock_client(monkeypatch, *, shopping_list_items: list[dict] | None = None) -> KitchenOwlClient:
     settings = _kitchenowl_settings(monkeypatch)
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -101,6 +101,11 @@ def _kitchenowl_mock_client(monkeypatch) -> KitchenOwlClient:
             return httpx.Response(200, json={"id": 1, "default_shopping_list": {"id": 1}})
         if request.url.path == "/shoppinglist/1/add-item-by-name":
             return httpx.Response(200, json={"id": 1, "name": json.loads(request.content)["name"]})
+        if request.url.path == "/shoppinglist/1/items":
+            return httpx.Response(200, json=shopping_list_items or [])
+        if request.url.path == "/shoppinglist/1/item":
+            item_id = json.loads(request.content)["item_id"]
+            return httpx.Response(200, json={"id": item_id})
         raise AssertionError(f"unexpected request: {request.method} {request.url.path}")
 
     return KitchenOwlClient(settings=settings, transport=httpx.MockTransport(handler))
@@ -159,6 +164,43 @@ def test_run_chat_turn_executes_tool_call_and_adds_items(monkeypatch):
 
     # The tool-call message and the tool result must both be fed back to the
     # model before it is asked for the final reply.
+    second_call_messages = llm.seen_messages[1]
+    assert second_call_messages[-2]["tool_calls"][0]["id"] == "call_1"
+    assert second_call_messages[-1]["role"] == "tool"
+    assert second_call_messages[-1]["tool_call_id"] == "call_1"
+
+
+def test_run_chat_turn_executes_clear_list_tool_call(monkeypatch):
+    llm = _StubLlmClient(
+        [
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "function": {"name": "clear_shopping_list", "arguments": "{}"},
+                    }
+                ],
+            },
+            {"role": "assistant", "content": "Tømte handlelisten!"},
+        ]
+    )
+    kitchenowl = _kitchenowl_mock_client(
+        monkeypatch,
+        shopping_list_items=[{"id": 1, "name": "Melk"}, {"id": 2, "name": "Brød"}],
+    )
+
+    result = run_chat_turn(
+        [ChatMessage(role="user", content="Tøm handlelisten")],
+        llm=llm,
+        kitchenowl=kitchenowl,
+    )
+
+    assert result.reply == "Tømte handlelisten!"
+    assert result.cleared_list is True
+    assert result.added_items == []
+
     second_call_messages = llm.seen_messages[1]
     assert second_call_messages[-2]["tool_calls"][0]["id"] == "call_1"
     assert second_call_messages[-1]["role"] == "tool"

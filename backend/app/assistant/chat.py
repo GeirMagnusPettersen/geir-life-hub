@@ -38,8 +38,12 @@ SYSTEM_PROMPT = (
     "det er naturlig (f.eks. '500 g kjøttdeig', '1 boks hermetiske tomater'). "
     "Ikke kall funksjonen før brukeren faktisk har bedt om det, og ikke "
     "dupliser varer brukeren allerede har nevnt at de har hjemme.\n\n"
-    "Etter at du har kalt funksjonen, bekreft kort på norsk hvilke varer som "
-    "ble lagt til."
+    "Hvis brukeren eksplisitt ber om å tømme handlelisten (f.eks. 'tøm "
+    "handlelisten', 'slett alt på listen'), kall funksjonen "
+    "clear_shopping_list. Dette er en destruktiv handling, så kall den kun "
+    "når brukeren tydelig har bedt om det.\n\n"
+    "Etter at du har kalt en funksjon, bekreft kort på norsk hva som ble gjort "
+    "(f.eks. hvilke varer som ble lagt til, eller at handlelisten ble tømt)."
 )
 
 _ADD_ITEMS_TOOL: dict[str, Any] = {
@@ -64,7 +68,20 @@ _ADD_ITEMS_TOOL: dict[str, Any] = {
     },
 }
 
+_CLEAR_LIST_TOOL: dict[str, Any] = {
+    "type": "function",
+    "function": {
+        "name": "clear_shopping_list",
+        "description": (
+            "Tøm hele husholdningens KitchenOwl-handleliste. Destruktiv "
+            "handling - bruk kun når brukeren eksplisitt ber om å tømme listen."
+        ),
+        "parameters": {"type": "object", "properties": {}},
+    },
+}
+
 _TOOL_NAME = "add_shopping_list_items"
+_CLEAR_TOOL_NAME = "clear_shopping_list"
 _MAX_TOOL_ITERATIONS = 3
 
 
@@ -82,6 +99,7 @@ class AddedShoppingListItem(BaseModel):
 class ChatReply(BaseModel):
     reply: str
     added_items: list[AddedShoppingListItem] = Field(default_factory=list)
+    cleared_list: bool = False
 
 
 def _add_items_to_shopping_list(
@@ -102,6 +120,16 @@ def _add_items_to_shopping_list(
     return added
 
 
+def _clear_shopping_list(kitchenowl: KitchenOwlClient) -> dict[str, Any]:
+    try:
+        removed = kitchenowl.clear_shopping_list()
+        return {"ok": True, "removed": removed}
+    except KitchenOwlNotConfiguredError as exc:
+        return {"ok": False, "detail": str(exc)}
+    except Exception as exc:  # noqa: BLE001 - surface any adapter failure
+        return {"ok": False, "detail": str(exc)}
+
+
 def run_chat_turn(
     history: list[ChatMessage],
     *,
@@ -110,22 +138,30 @@ def run_chat_turn(
 ) -> ChatReply:
     """Run one turn of the meal-planning assistant conversation.
 
-    Sends the conversation to the LLM with the shopping-list tool available,
+    Sends the conversation to the LLM with the shopping-list tools available,
     executes any tool call(s) the model makes against the live KitchenOwl
     shopping list, feeds the tool results back, and returns the model's
-    final natural-language reply plus a record of what was actually added.
+    final natural-language reply plus a record of what was actually added or
+    cleared.
     """
     messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
     messages.extend({"role": m.role, "content": m.content} for m in history)
 
     added_items: list[AddedShoppingListItem] = []
+    cleared_list = False
 
     for _ in range(_MAX_TOOL_ITERATIONS):
-        message = llm.chat_completion(messages, tools=[_ADD_ITEMS_TOOL])
+        message = llm.chat_completion(
+            messages, tools=[_ADD_ITEMS_TOOL, _CLEAR_LIST_TOOL]
+        )
         tool_calls = message.get("tool_calls") or []
 
         if not tool_calls:
-            return ChatReply(reply=message.get("content") or "", added_items=added_items)
+            return ChatReply(
+                reply=message.get("content") or "",
+                added_items=added_items,
+                cleared_list=cleared_list,
+            )
 
         # Echo the assistant's tool-call message back into the transcript
         # (required by the OpenAI-compatible protocol) before answering it.
@@ -146,6 +182,11 @@ def run_chat_turn(
                 tool_content = json.dumps(
                     {"added": [a.model_dump() for a in result]}, ensure_ascii=False
                 )
+            elif name == _CLEAR_TOOL_NAME:
+                result = _clear_shopping_list(kitchenowl)
+                if result.get("ok"):
+                    cleared_list = True
+                tool_content = json.dumps(result, ensure_ascii=False)
             else:
                 tool_content = json.dumps({"error": f"unknown tool '{name}'"})
 

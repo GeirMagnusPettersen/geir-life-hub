@@ -196,3 +196,49 @@ def test_client_propagates_http_errors(monkeypatch):
     client = KitchenOwlClient(settings=settings, transport=httpx.MockTransport(handler))
     with pytest.raises(httpx.HTTPStatusError):
         client.get_recipes()
+
+
+def test_client_clears_shopping_list_by_removing_each_item(monkeypatch):
+    settings = _settings_with_kitchenowl(monkeypatch)
+    deleted_item_ids: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/auth":
+            return httpx.Response(200, json={"access_token": "tok-1"})
+        if request.url.path == "/household/1":
+            return httpx.Response(200, json={"id": 1, "default_shopping_list": {"id": 1}})
+        if request.url.path == "/shoppinglist/1/items":
+            return httpx.Response(200, json=[{"id": 1, "name": "Milk"}, {"id": 2, "name": "Eggs"}])
+        if request.url.path == "/shoppinglist/1/item":
+            assert request.method == "DELETE"
+            item_id = json.loads(request.content)["item_id"]
+            deleted_item_ids.append(item_id)
+            return httpx.Response(200, json={"id": item_id})
+        raise AssertionError(f"unexpected request: {request.method} {request.url.path}")
+
+    client = KitchenOwlClient(settings=settings, transport=httpx.MockTransport(handler))
+    removed = client.clear_shopping_list()
+
+    assert removed == 2
+    assert deleted_item_ids == [1, 2]
+
+
+def test_client_clears_empty_shopping_list_without_deletes(monkeypatch):
+    settings = _settings_with_kitchenowl(monkeypatch)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/auth":
+            return httpx.Response(200, json={"access_token": "tok-1"})
+        if request.url.path == "/household/1":
+            return httpx.Response(200, json={"id": 1, "default_shopping_list": {"id": 1}})
+        if request.url.path == "/shoppinglist/1/items":
+            return httpx.Response(200, json=[])
+        raise AssertionError(f"unexpected request: {request.method} {request.url.path}")
+
+    client = KitchenOwlClient(settings=settings, transport=httpx.MockTransport(handler))
+    assert client.clear_shopping_list() == 0
+
+
+def test_clear_shopping_list_endpoint_returns_503_when_not_configured(auth_client):
+    response = auth_client.delete("/integrations/kitchenowl/shopping-list")
+    assert response.status_code == 503

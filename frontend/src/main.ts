@@ -258,17 +258,21 @@ async function handleAssistantSubmit(event: SubmitEvent): Promise<void> {
     assistantHistory.push({ role: "assistant", content: reply.reply });
     if (historyEl) historyEl.innerHTML = renderAssistantHistory();
     if (feedbackEl) {
-      feedbackEl.textContent = reply.added_items.length
-        ? `Lagt til handlelisten: ${reply.added_items
-            .filter((i) => i.ok)
-            .map((i) => i.name)
-            .join(", ")}`
-        : "";
+      if (reply.cleared_list) {
+        feedbackEl.textContent = "Handlelisten ble tømt.";
+      } else if (reply.added_items.length) {
+        feedbackEl.textContent = `Lagt til handlelisten: ${reply.added_items
+          .filter((i) => i.ok)
+          .map((i) => i.name)
+          .join(", ")}`;
+      } else {
+        feedbackEl.textContent = "";
+      }
       feedbackEl.classList.remove("error");
     }
-    // Refresh the shopping list widget so confirmed items show up immediately,
-    // without requiring a manual page reload.
-    if (reply.added_items.some((i) => i.ok)) {
+    // Refresh the shopping list widget so confirmed items/clears show up
+    // immediately, without requiring a manual page reload.
+    if (reply.cleared_list || reply.added_items.some((i) => i.ok)) {
       await loadKitchenOwlSection();
     }
   } catch (err) {
@@ -453,6 +457,9 @@ async function loadKitchenOwlSection(): Promise<void> {
         </label>
         <button type="submit">Legg til</button>
       </form>
+      <button type="button" id="kitchenowl-clear-btn" class="secondary-btn" ${
+        items.length ? "" : "disabled"
+      }>Tøm handleliste</button>
     `;
 
     container.querySelectorAll<HTMLInputElement>("input[data-item-id]").forEach((checkbox) => {
@@ -473,6 +480,17 @@ async function loadKitchenOwlSection(): Promise<void> {
       const data = new FormData(addForm);
       try {
         await api.kitchenowlAddShoppingListItem(String(data.get("name") ?? ""));
+        await loadKitchenOwlSection();
+      } catch (err) {
+        console.error(err);
+      }
+    });
+
+    const clearBtn = document.getElementById("kitchenowl-clear-btn") as HTMLButtonElement | null;
+    clearBtn?.addEventListener("click", async () => {
+      if (!window.confirm("Tømme hele handlelisten? Dette kan ikke angres.")) return;
+      try {
+        await api.kitchenowlClearShoppingList();
         await loadKitchenOwlSection();
       } catch (err) {
         console.error(err);

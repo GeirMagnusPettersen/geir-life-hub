@@ -62,6 +62,20 @@ button:hover {
   background: #185843;
 }
 
+button.secondary-btn {
+  background: #b3261e;
+  margin-top: 0.5rem;
+}
+
+button.secondary-btn:hover {
+  background: #8c1d16;
+}
+
+button.secondary-btn:disabled {
+  background: #c7d0cc;
+  cursor: not-allowed;
+}
+
 .main-nav {
   display: flex;
   gap: 0.5rem;

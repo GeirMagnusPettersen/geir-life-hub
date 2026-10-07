@@ -178,6 +178,24 @@ class KitchenOwlClient:
         )
         return response.json()
 
+    def clear_shopping_list(self) -> int:
+        """Remove every item currently on the shopping list.
+
+        KitchenOwl has no bulk "clear" endpoint, so this fetches the current
+        items and removes them one by one via the existing per-item delete
+        used by :meth:`set_shopping_list_item_checked`. Returns the number of
+        items removed.
+        """
+        items = self.get_shopping_list_items()
+        removed = 0
+        for item in items:
+            item_id = item.get("id")
+            if item_id is None:
+                continue
+            self.set_shopping_list_item_checked(item_id, True)
+            removed += 1
+        return removed
+
     def get_recipes(self) -> list[dict[str, Any]]:
         household_id = self._require_household_id()
         response = self._request("GET", f"/household/{household_id}/recipe")

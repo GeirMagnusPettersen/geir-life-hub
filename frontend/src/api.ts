@@ -97,6 +97,7 @@ export interface AssistantAddedItem {
 export interface AssistantChatReply {
   reply: string;
   added_items: AssistantAddedItem[];
+  cleared_list: boolean;
 }
 
 export const api = {
@@ -151,6 +152,10 @@ export const api = {
     request<KitchenOwlShoppingListItem>(`/integrations/kitchenowl/shopping-list/${itemId}`, {
       method: "PUT",
       body: JSON.stringify({ checked }),
+    }),
+  kitchenowlClearShoppingList: () =>
+    request<{ removed: number }>("/integrations/kitchenowl/shopping-list", {
+      method: "DELETE",
     }),
   assistantStatus: () => request<AssistantStatus>("/assistant/status"),
   assistantChat: (messages: AssistantChatMessage[]) =>
