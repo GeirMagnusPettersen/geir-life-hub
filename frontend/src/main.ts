@@ -455,10 +455,37 @@ async function handleAssistantSubmit(event: SubmitEvent): Promise<void> {
   } catch (err) {
     console.error(err);
     if (feedbackEl) {
-      feedbackEl.textContent = "Kunne ikke nå assistenten.";
+      feedbackEl.textContent = describeAssistantError(err);
       feedbackEl.classList.add("error");
     }
   }
+}
+
+// `request()` in api.ts throws `Error("<status>: <json-or-text-body>")`. Pull
+// out FastAPI's `detail` field (set by our 502/503 handlers in
+// routers/assistant.py) so provider/config problems show up as a specific,
+// actionable message instead of a generic "couldn't reach the assistant".
+function describeAssistantError(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  const separatorIndex = message.indexOf(": ");
+  const status = separatorIndex >= 0 ? message.slice(0, separatorIndex) : "";
+  const rawBody = separatorIndex >= 0 ? message.slice(separatorIndex + 2) : message;
+
+  let detail = rawBody;
+  try {
+    const parsed = JSON.parse(rawBody) as { detail?: string };
+    if (parsed.detail) detail = parsed.detail;
+  } catch {
+    // rawBody wasn't JSON; fall back to using it as-is.
+  }
+
+  if (status === "503") {
+    return "Assistenten er ikke konfigurert ennå.";
+  }
+  if (status === "502") {
+    return `Assistenten fikk et feilsvar fra AI-tjenesten: ${detail}`;
+  }
+  return "Kunne ikke nå assistenten.";
 }
 
 async function loadAssistantSection(): Promise<void> {

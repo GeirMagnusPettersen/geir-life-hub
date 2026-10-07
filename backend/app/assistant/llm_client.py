@@ -82,7 +82,18 @@ class LlmClient:
                 json=payload,
                 headers={"Authorization": f"Bearer {self._settings.assistant_api_key}"},
             )
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            # Surface the provider's own error message (e.g. Groq's
+            # "model_not_found") instead of a bare status code, so a bad
+            # model name/account-access issue is distinguishable in logs
+            # and in the user-facing error from a plain network failure.
+            detail = self._extract_provider_error(response)
+            raise AssistantProviderError(
+                f"Assistant provider returned {response.status_code} for model "
+                f"'{payload['model']}': {detail}"
+            ) from exc
         body = response.json()
         try:
             return body["choices"][0]["message"]
@@ -90,3 +101,18 @@ class LlmClient:
             raise AssistantProviderError(
                 f"Unexpected response shape from assistant provider: {body!r}"
             ) from exc
+
+    @staticmethod
+    def _extract_provider_error(response: httpx.Response) -> str:
+        """Best-effort extraction of a human-readable message from an
+        OpenAI-compatible error body, e.g. ``{"error": {"message": "..."}}``.
+        Falls back to the raw response text if the shape is unexpected.
+        """
+        try:
+            error_body = response.json()
+            message = error_body.get("error", {}).get("message")
+            if message:
+                return str(message)
+        except (ValueError, AttributeError):
+            pass
+        return response.text[:300]

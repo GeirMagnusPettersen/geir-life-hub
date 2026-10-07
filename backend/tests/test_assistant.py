@@ -76,6 +76,36 @@ def test_llm_client_raises_provider_error_on_unexpected_shape(monkeypatch):
         client.chat_completion([{"role": "user", "content": "hei"}])
 
 
+def test_llm_client_raises_provider_error_with_upstream_message_on_http_error(monkeypatch):
+    # Mirrors a real Groq response for a model id the API key has no access
+    # to: a 404 with an OpenAI-style {"error": {"message": ...}} body. The
+    # client should surface that message instead of just the status code,
+    # so a bad/unavailable model name is distinguishable from e.g. a
+    # transient network failure.
+    settings = _settings_with_assistant(monkeypatch)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            404,
+            json={
+                "error": {
+                    "message": "The model `test-model` does not exist or you do not have access to it.",
+                    "type": "invalid_request_error",
+                    "code": "model_not_found",
+                }
+            },
+        )
+
+    client = LlmClient(settings=settings, transport=httpx.MockTransport(handler))
+    with pytest.raises(AssistantProviderError) as exc_info:
+        client.chat_completion([{"role": "user", "content": "hei"}])
+
+    message = str(exc_info.value)
+    assert "404" in message
+    assert "test-model" in message
+    assert "does not exist or you do not have access to it" in message
+
+
 # --- run_chat_turn (tool-calling loop) ----------------------------------
 
 
