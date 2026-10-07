@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import enum
 from datetime import date, datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -80,6 +82,7 @@ class FluidEntryOut(BaseModel):
     amount_ml: int
     fluid_type: FluidType
     recorded_at: datetime
+    source: str
 
 
 # --- Coffee ---------------------------------------------------------------
@@ -99,6 +102,7 @@ class CoffeeEntryOut(BaseModel):
     cups: float
     recorded_at: datetime
     note: str | None
+    source: str
 
 
 # --- Health observations ---------------------------------------------------
@@ -120,6 +124,7 @@ class HealthObservationOut(BaseModel):
     description: str
     severity: int | None
     recorded_at: datetime
+    source: str
 
 
 # --- Sleep / activity -------------------------------------------------------
@@ -292,3 +297,60 @@ class SleepTrendReport(BaseModel):
     period_days: int
     generated_at: datetime
     points: list[SleepTrendPoint]
+
+
+# --- AI assistant data import --------------------------------------------
+#
+# Lets a household member paste structured output from another AI assistant
+# (e.g. Microsoft Copilot, ChatGPT) - a shopping list it generated, a sleep
+# summary it extracted from a screenshot, etc. - and import it into the
+# matching domain in one batch call. Each item is validated independently
+# against the *same* Create schema the manual-entry endpoints use, so the
+# import can never produce data the UI itself couldn't have created; a bad
+# item is recorded as an error without failing the rest of the batch
+# (mirrors the partial-success shape of POST /weight/import).
+
+
+class AiImportDomain(str, enum.Enum):
+    weight = "weight"
+    sleep_activity = "sleep_activity"
+    fluid = "fluid"
+    coffee = "coffee"
+    health_observation = "health_observation"
+    shopping_list_item = "shopping_list_item"
+
+
+class AiImportShoppingListItem(BaseModel):
+    """Minimal shape forwarded to the KitchenOwl adapter for a single
+    shopping-list item - KitchenOwl itself owns the full data model."""
+
+    name: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=500)
+
+
+class AiImportItem(BaseModel):
+    domain: AiImportDomain
+    data: dict[str, Any]
+
+
+class AiImportRequest(BaseModel):
+    source_model: str = Field(
+        min_length=1,
+        max_length=20,
+        description='Short tag for the originating AI assistant, e.g. "copilot" or "chatgpt".',
+    )
+    items: list[AiImportItem] = Field(min_length=1, max_length=200)
+
+
+class AiImportItemResult(BaseModel):
+    index: int
+    domain: AiImportDomain
+    status: str  # "created" | "error"
+    detail: str | None = None
+    id: str | None = None
+
+
+class AiImportResult(BaseModel):
+    imported: int
+    skipped: int
+    results: list[AiImportItemResult]

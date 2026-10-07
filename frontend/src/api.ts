@@ -141,6 +141,36 @@ export interface WeightImportResult {
   errors: WeightImportError[];
 }
 
+// Domains the generic "import data from another AI assistant" endpoint
+// (POST /import/ai) understands. Kept in sync with
+// backend/app/schemas.py::AiImportDomain.
+export type AiImportDomain =
+  | "weight"
+  | "sleep_activity"
+  | "fluid"
+  | "coffee"
+  | "health_observation"
+  | "shopping_list_item";
+
+export interface AiImportItem {
+  domain: AiImportDomain;
+  data: Record<string, unknown>;
+}
+
+export interface AiImportItemResult {
+  index: number;
+  domain: AiImportDomain;
+  status: "created" | "error";
+  id?: string | null;
+  detail?: string | null;
+}
+
+export interface AiImportResult {
+  imported: number;
+  skipped: number;
+  results: AiImportItemResult[];
+}
+
 export const api = {
   login: (username: string, password: string) =>
     request<UserOut>("/auth/login", {
@@ -221,6 +251,14 @@ export const api = {
   kitchenowlClearShoppingList: () =>
     request<{ removed: number }>("/integrations/kitchenowl/shopping-list", {
       method: "DELETE",
+    }),
+  // Generic batch import for data pasted/exported from another AI assistant
+  // (e.g. Microsoft Copilot) that produced a shopping list, sleep summary,
+  // weight reading, etc. See backend/app/routers/ai_import.py.
+  importAiData: (sourceModel: string, items: AiImportItem[]) =>
+    request<AiImportResult>("/import/ai", {
+      method: "POST",
+      body: JSON.stringify({ source_model: sourceModel, items }),
     }),
   assistantStatus: () => request<AssistantStatus>("/assistant/status"),
   assistantChat: (messages: AssistantChatMessage[]) =>

@@ -110,6 +110,11 @@ class FluidType(str, enum.Enum):
 
 
 class FluidEntry(Base):
+    """`source` follows the same convention as `WeightEntry`/
+    `SleepActivitySummary`: "manual" (typed into the UI, the default) vs an
+    import tag such as "ai_import:copilot" for entries brought in via the
+    AI-assistant import endpoint (see app/routers/ai_import.py)."""
+
     __tablename__ = "fluid_entries"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid_str)
@@ -117,10 +122,13 @@ class FluidEntry(Base):
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     amount_ml: Mapped[int] = mapped_column(Integer, nullable=False)
     fluid_type: Mapped[FluidType] = mapped_column(Enum(FluidType, native_enum=False), default=FluidType.water)
+    source: Mapped[str] = mapped_column(String(32), default="manual", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
 class CoffeeEntry(Base):
+    """See `FluidEntry.source` docstring - same convention applies here."""
+
     __tablename__ = "coffee_entries"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid_str)
@@ -128,12 +136,14 @@ class CoffeeEntry(Base):
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     cups: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source: Mapped[str] = mapped_column(String(32), default="manual", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
 class HealthObservation(Base):
     """Free-form health observations / symptoms log. Not a diagnosis tool -
-    just a shared household log of notable health events."""
+    just a shared household log of notable health events. See
+    `FluidEntry.source` docstring for the `source` convention."""
 
     __tablename__ = "health_observations"
 
@@ -143,6 +153,7 @@ class HealthObservation(Base):
     category: Mapped[str] = mapped_column(String(64), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     severity: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1 (mild) - 5 (severe)
+    source: Mapped[str] = mapped_column(String(32), default="manual", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 

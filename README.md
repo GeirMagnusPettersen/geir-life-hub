@@ -407,6 +407,43 @@ API:
 - Frontend har et eget "Importer vekt fra Vektklubb (CSV)"-skjema i
   logg-seksjonen for å laste opp filen manuelt.
 
+### Import av data fra andre AI-assistenter (f.eks. Microsoft Copilot)
+
+Husholdningen bruker av og til andre AI-assistenter (f.eks. Microsoft 365
+Copilot) som allerede har samlet data som hører hjemme i Life Hub – en
+handleliste Copilot har notert, søvntall fra en annen app/chat, osv. I
+stedet for å bygge en egen integrasjon per assistent, finnes det ett generisk
+batch-importendepunkt som et menneske (eller en annen agent, på vegne av
+brukeren) kan lime strukturert JSON inn i:
+
+- `POST /import/ai` tar imot
+  `{"source_model": "copilot", "items": [{"domain": "...", "data": {...}}]}`.
+  `source_model` er en fri tekststreng (f.eks. `"copilot"`, `"chatgpt"`) som
+  lagres på hver opprettede rad som `source="ai_import:<source_model>"`
+  (trunkert til 20 tegn), slik at opprinnelsen alltid er sporbar – på samme
+  måte som `source="vektklubb_import"` for CSV-importen over.
+- Støttede `domain`-verdier og forventet `data`-form (feltnavn tilsvarer de
+  vanlige loggendepunktene):
+  - `weight`: `{"weight_kg": 82.5, "note": "..."}`
+  - `fluid`: `{"amount_ml": 500, "note": "..."}`
+  - `coffee`: `{"cups": 1, "note": "..."}`
+  - `health_observation`: `{"symptom": "hodepine", "severity": 2, "note": "..."}`
+  - `sleep_activity`: `{"summary_date": "2025-01-01", "sleep_minutes": 420, "steps": 8000, "resting_heart_rate": 58, "average_heart_rate": 70}`
+    – upsertes per dato (samme semantikk som Health Connect-synken), men med
+    `source="ai_import:<source_model>"` i stedet for `"health_connect"`.
+  - `shopping_list_item`: `{"name": "Melk", "list_id": 1}` – forwardes til den
+    konfigurerte KitchenOwl-instansen via adapteren (ingen lokal duplisering
+    av handlelisten); krever at KitchenOwl-integrasjonen er satt opp.
+- Importen er delvis-feilende, som CSV-importen: hvert element i `items`
+  behandles for seg, og svaret
+  (`{"imported": n, "skipped": n, "results": [{"index": n, "domain": "...", "status": "created"|"error", "id": n, "detail": "..."}]}`)
+  viser status og eventuell feilårsak per element i stedet for å stoppe hele
+  batchen ved første feil.
+- Frontend har et "Importer data fra AI-assistent"-skjema i logg-seksjonen:
+  et fritekstfelt for `source_model` og et tekstfelt for å lime inn
+  JSON-listen med elementer, samt en resultatliste per element etter
+  innsending.
+
 ## Lokal utvikling
 
 ### Backend
@@ -507,6 +544,10 @@ Implementert:
   et eget `/reports/sleep-trend`-endepunkt med daglig søvnvarighet og
   hvile-/snittpuls per bruker for en valgfri periode (standard 30 dager)
 - KitchenOwl-adapter (grensesnitt mot separat selvhostet instans, ingen lokal duplisering av dens datamodell)
+- Generisk batch-import fra andre AI-assistenter (`POST /import/ai`): lar
+  f.eks. Microsoft Copilot-genererte handlelister, søvntall eller andre
+  logg-elementer importeres manuelt, med sporbar `source`-stempling og
+  delvis-feilende per-element-resultat (samme mønster som Vektklubb-CSV-importen)
 - Måltidsassistent: chat-grensesnitt (LLM tool-calling) som legger
   ingredienser til KitchenOwl-handlelisten på forespørsel, krever en egen
   API-nøkkel (`ASSISTANT_API_KEY`) for å aktiveres

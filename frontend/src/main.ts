@@ -1,5 +1,6 @@
 import {
   api,
+  type AiImportItem,
   type AssistantChatMessage,
   type DashboardReport,
   type KitchenOwlShoppingListItem,
@@ -221,6 +222,34 @@ function renderLogForms(): string {
             <input name="steps" type="number" min="0" />
           </label>
           <button type="submit">Lagre søvn/aktivitet</button>
+        </form>
+
+        <form id="ai-import-form" class="log-form">
+          <h3>Importer fra AI-assistent</h3>
+          <p class="log-form-hint">
+            Lim inn data eksportert fra en annen AI-assistent (f.eks. Microsoft Copilot) –
+            handlelister, søvndata, vekt, væske, kaffe eller helseobservasjoner – som en
+            liste med JSON-objekter. Hvert objekt må ha <code>domain</code>
+            (<code>weight</code>, <code>sleep_activity</code>, <code>fluid</code>,
+            <code>coffee</code>, <code>health_observation</code> eller
+            <code>shopping_list_item</code>) og et <code>data</code>-felt med
+            verdiene for det området.
+          </p>
+          <label>
+            Kilde (AI-modell)
+            <input name="source_model" type="text" maxlength="64" required placeholder="f.eks. copilot" />
+          </label>
+          <label>
+            Data (JSON-liste)
+            <textarea
+              name="items_json"
+              rows="6"
+              required
+              placeholder='[{"domain": "shopping_list_item", "data": {"name": "Melk"}}]'
+            ></textarea>
+          </label>
+          <button type="submit">Importer</button>
+          <div id="ai-import-results"></div>
         </form>
       </div>
       <p id="log-feedback" role="status"></p>
@@ -873,6 +902,48 @@ function wireLogForms(onLogged: () => void): void {
       onLogged();
     } catch (err) {
       setLogFeedback("Kunne ikke lagre søvn/aktivitet.", true);
+      console.error(err);
+    }
+  });
+
+  const aiImportForm = document.getElementById("ai-import-form") as HTMLFormElement;
+  aiImportForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const resultsEl = document.getElementById("ai-import-results");
+    const data = new FormData(aiImportForm);
+    const sourceModel = String(data.get("source_model") ?? "").trim();
+    const itemsRaw = String(data.get("items_json") ?? "");
+
+    let items: AiImportItem[];
+    try {
+      const parsed = JSON.parse(itemsRaw);
+      if (!Array.isArray(parsed)) throw new Error("Forventet en JSON-liste.");
+      items = parsed as AiImportItem[];
+    } catch (err) {
+      setLogFeedback("Ugyldig JSON i import-feltet.", true);
+      console.error(err);
+      return;
+    }
+
+    try {
+      const result = await api.importAiData(sourceModel, items);
+      setLogFeedback(`Importerte ${result.imported} element(er), hoppet over ${result.skipped}.`, result.skipped > 0);
+      if (resultsEl) {
+        resultsEl.innerHTML = result.results
+          .map((r) => {
+            const label = r.status === "created" ? "OK" : "Feil";
+            const detail = r.detail ? `: ${escapeHtml(r.detail)}` : "";
+            return `<p class="ai-import-result ai-import-result-${r.status}">#${r.index} (${r.domain}) – ${label}${detail}</p>`;
+          })
+          .join("");
+      }
+      if (result.imported > 0) {
+        aiImportForm.reset();
+        onLogged();
+        void loadKitchenOwlSection();
+      }
+    } catch (err) {
+      setLogFeedback("Kunne ikke importere data fra AI-assistent.", true);
       console.error(err);
     }
   });

@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.routers import (
+    ai_import,
     assistant,
     auth,
     coffee,
@@ -60,3 +61,4 @@ app.include_router(workouts.router)
 app.include_router(reports.router)
 app.include_router(kitchenowl.router)
 app.include_router(assistant.router)
+app.include_router(ai_import.router)
