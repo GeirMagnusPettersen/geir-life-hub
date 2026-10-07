@@ -47,10 +47,15 @@ konfigurert) i stedet for å feile tungt.
    docker compose up --build
    ```
 
-   Dette starter `db` (Postgres 16.4), `backend` (FastAPI på port 8000) og
-   `frontend` (statisk PWA via nginx på port 5173). Databaseskjemaet
+   Dette starter `db` (Postgres 16.4), `backend` (FastAPI på port 8000),
+   `frontend` (statisk PWA via nginx på port 5173) og `ollama` (selvhostet
+   lokal vision-modell for bildechat, se
+   [Måltidsassistent](#måltidsassistent-chat--handleliste) under - laster
+   ned et ca. 900 MB+ image første gang). Databaseskjemaet
    opprettes/oppdateres automatisk ved oppstart av backend-containeren via
    `alembic upgrade head` (kjøres før `uvicorn` starter, se `backend/Dockerfile`).
+   For å slippe å starte/laste ned `ollama` når du ikke trenger lokal
+   bildechat: `docker compose up --build db backend frontend`.
 
 3. Opprett de to husholdningsbrukerne (kjøres inne i backend-containeren):
 
@@ -186,15 +191,54 @@ adapteren over – uten at bruker manuelt må skrive inn hver vare.
 - **Bilde av en rett → forslag til handleliste**: frontend lar brukeren
   legge ved et bilde (f.eks. av en middag) til en melding via 📷-knappen i
   chat-en. Bildet skaleres/komprimeres client-side (maks ~1024px, JPEG) før
-  det sendes som en `data:image/...`-URL. Så snart en melding i historikken
-  inneholder et bilde, rutes *kun den turen* til en egen, multimodal
-  (vision-kapabel) modell satt via `ASSISTANT_VISION_MODEL` (default
-  `meta-llama/llama-4-scout-17b-16e-instruct` – Groqs bilde-modell), mens
-  vanlig tekst-chat fortsatt bruker `ASSISTANT_MODEL`. Assistenten foreslår
-  ingredienser ut fra bildet, men legger dem – som ellers – aldri til
-  handlelisten uten eksplisitt bekreftelse fra brukeren. Merk: tilgang til
-  vision-modellen avhenger av din Groq-konto/-tier; bytt `ASSISTANT_VISION_MODEL`
-  til en annen OpenAI-kompatibel multimodal modell om nødvendig.
+  det sendes som en `data:image/...`-URL.
+  Så snart en melding i historikken inneholder et bilde, kjøres turen i to
+  steg i stedet for ett:
+  1. Bildet beskrives som ren tekst i et eget, verktøy-fritt kall til en
+     multimodal (vision-kapabel) modell satt via `ASSISTANT_VISION_MODEL`
+     (default `meta-llama/llama-4-scout-17b-16e-instruct` – Groqs
+     bilde-modell), eller en egen leverandør satt via
+     `ASSISTANT_VISION_BASE_URL`/`ASSISTANT_VISION_API_KEY` (se under).
+  2. Bildebeskrivelsen limes inn i brukerens melding som
+     `[Bildeanalyse: ...]`-tekst, og resten av samtalen (inkl. eventuelt
+     verktøykall for å legge varer i handlelisten) kjøres som vanlig på
+     `ASSISTANT_MODEL`.
+  Dette er bevisst splittet opp fordi flere mindre/lokale vision-modeller
+  (bl.a. Ollamas `moondream`, se under) rett og slett avviser en
+  forespørsel som inneholder både bilde og verktøy samtidig (`400 ...does
+  not support tools`) - selv om modellen aldri ville trengt å kalle et
+  verktøy fra en ren bildebeskrivelse. Ved å alltid la den tekst-/
+  verktøykapable modellen eie verktøykallene, og la vision-modellen kun
+  beskrive bildet som tekst, unngår vi den begrensningen uansett hvilken
+  vision-modell som er konfigurert.
+  Assistenten foreslår ingredienser ut fra bildet, men legger dem – som
+  ellers – aldri til handlelisten uten eksplisitt bekreftelse fra brukeren.
+  Merk: tilgang til Groqs vision-modell avhenger av din Groq-konto/-tier;
+  bytt `ASSISTANT_VISION_MODEL` til en annen OpenAI-kompatibel multimodal
+  modell om nødvendig, eller bruk den lokale Ollama-oppsettet under for å
+  slippe å være avhengig av en ekstern leverandørs bilde-tilgang i det hele
+  tatt.
+  - **Kjøre bildechat helt lokalt og gratis (Ollama)**: repoet har en
+    `ollama`-tjeneste i `docker-compose.yml` (image `ollama/ollama:0.40.0`,
+    port 11434, persistent volum). Den starter med `docker compose up`
+    som alle andre tjenester (merk: dette drar ned et ca. 900 MB+ image
+    første gang `ollama` bygges/startes - se "Kom i gang"-seksjonen for
+    hvordan man evt. utelater den). Første gang:
+    ```powershell
+    docker compose up -d ollama
+    docker compose exec ollama ollama pull moondream
+    ```
+    Sett deretter i `.env` (se `.env.example`) og restart backend:
+    ```
+    ASSISTANT_VISION_BASE_URL=http://ollama:11434/v1
+    ASSISTANT_VISION_API_KEY=ollama
+    ASSISTANT_VISION_MODEL=moondream
+    ```
+    Når disse tre er satt rutes kun bildebeskrivelses-kallet (steg 1 over)
+    til den lokale Ollama-instansen; selve samtalen/verktøykallene (steg 2)
+    bruker fortsatt `ASSISTANT_BASE_URL`/`ASSISTANT_MODEL` (f.eks. Groq) som
+    før. La alle tre stå tomme/kommentert ut for å bruke samme leverandør
+    for både tekst og bilder.
 
 ### Dashboard-rapport
 

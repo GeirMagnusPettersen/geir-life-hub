@@ -122,6 +122,10 @@ class _StubLlmClient:
         self.seen_models.append(model)
         return self._responses.pop(0)
 
+    def for_vision(self) -> "_StubLlmClient":
+        """Mirrors LlmClient.for_vision(): reuses the same stubbed responses."""
+        return self
+
 
 def _kitchenowl_mock_client(monkeypatch, *, shopping_list_items: list[dict] | None = None) -> KitchenOwlClient:
     settings = _kitchenowl_settings(monkeypatch)
@@ -174,12 +178,17 @@ def test_run_chat_turn_uses_default_model_without_image(monkeypatch):
     assert llm.seen_models == [None]
 
 
-def test_run_chat_turn_routes_image_messages_to_vision_model(monkeypatch):
+def test_run_chat_turn_describes_image_then_uses_normal_model_for_reply(monkeypatch):
+    # First call is the tools-free vision description; second is the normal
+    # tool-capable model's reply, now seeing the image only as text.
     llm = _StubLlmClient(
-        [{"role": "assistant", "content": "Dette ser ut som en tacogryte!"}]
+        [
+            {"role": "assistant", "content": "Tacogryte med kjøttdeig og mais."},
+            {"role": "assistant", "content": "Dette ser ut som en tacogryte!"},
+        ]
     )
     kitchenowl = _kitchenowl_mock_client(monkeypatch)
-    settings = _settings_with_assistant(monkeypatch)
+    _settings_with_assistant(monkeypatch)
     monkeypatch.setenv("ASSISTANT_VISION_MODEL", "vision-test-model")
     settings = Settings()
 
@@ -197,15 +206,23 @@ def test_run_chat_turn_routes_image_messages_to_vision_model(monkeypatch):
     )
 
     assert result.reply == "Dette ser ut som en tacogryte!"
-    assert llm.seen_models == ["vision-test-model"]
-    sent_content = llm.seen_messages[0][-1]["content"]
-    assert sent_content == [
+    # Vision call: used the dedicated vision model, no tools, image content.
+    assert llm.seen_models == ["vision-test-model", None]
+    vision_call_messages = llm.seen_messages[0]
+    vision_content = vision_call_messages[-1]["content"]
+    assert vision_content == [
         {"type": "text", "text": "Hva er dette?"},
         {
             "type": "image_url",
             "image_url": {"url": "data:image/jpeg;base64,/9j/4AAQSkZJRg=="},
         },
     ]
+    # Main call: plain text only (no image), including the vision description.
+    main_call_messages = llm.seen_messages[1]
+    main_user_message = main_call_messages[-1]
+    assert main_user_message["role"] == "user"
+    assert "Hva er dette?" in main_user_message["content"]
+    assert "Tacogryte med kjøttdeig og mais." in main_user_message["content"]
 
 
 def test_chat_message_rejects_non_data_url_image():

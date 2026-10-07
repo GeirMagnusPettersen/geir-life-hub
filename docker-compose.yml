@@ -41,6 +41,12 @@ services:
       ASSISTANT_BASE_URL: ${ASSISTANT_BASE_URL:-https://api.openai.com/v1}
       ASSISTANT_MODEL: ${ASSISTANT_MODEL:-gpt-4o-mini}
       ASSISTANT_VISION_MODEL: ${ASSISTANT_VISION_MODEL:-meta-llama/llama-4-scout-17b-16e-instruct}
+      # Optional: route image-bearing chat turns to a different provider
+      # than ASSISTANT_BASE_URL (e.g. the self-hosted Ollama service below),
+      # while text turns keep using the main provider. Both default to the
+      # main ASSISTANT_* values when left blank.
+      ASSISTANT_VISION_BASE_URL: ${ASSISTANT_VISION_BASE_URL:-}
+      ASSISTANT_VISION_API_KEY: ${ASSISTANT_VISION_API_KEY:-}
     ports:
       - "8000:8000"
 
@@ -59,6 +65,20 @@ services:
       - backend
     ports:
       - "5173:80"
+
+  # Self-hosted Ollama instance providing a free, local vision model for
+  # meal-photo chat (ASSISTANT_VISION_BASE_URL=http://ollama:11434/v1 in
+  # .env), so image-based chat works out of the box with no signup/paid
+  # vision API required. Text chat keeps using ASSISTANT_BASE_URL (Groq by
+  # default) regardless of this service. First run: pull a model with
+  # `docker compose exec ollama ollama pull moondream` (see README).
+  ollama:
+    image: ollama/ollama:0.40.0
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
 
   # Optional: self-hosted KitchenOwl instance (recipes/shopping list), only
   # started when the `kitchenowl` profile is enabled (see .env.example).
@@ -90,3 +110,4 @@ services:
 volumes:
   lifehub_postgres_data:
   kitchenowl_data:
+  ollama_data:

@@ -166,6 +166,41 @@ def _clear_shopping_list(kitchenowl: KitchenOwlClient) -> dict[str, Any]:
         return {"ok": False, "detail": str(exc)}
 
 
+_VISION_SYSTEM_PROMPT = (
+    "Du er en bildeanalysator for en matlagingsassistent. Se nøye på bildet og "
+    "beskriv kort og konkret på norsk: (1) hvilken matrett eller hvilke "
+    "ingredienser bildet sannsynligvis viser, og (2) en liste med sannsynlige "
+    "ingredienser/varer. Svar kun med selve beskrivelsen - ikke still "
+    "spørsmål tilbake, og ikke nevn at du er en bildeanalysator."
+)
+
+
+def _describe_image(
+    vision_llm: LlmClient, *, image_url: str, user_text: str, model: str | None
+) -> str:
+    """Ask the vision-routed model to describe an uploaded photo as plain text.
+
+    Many small/local vision models (e.g. a self-hosted Ollama model like
+    ``moondream``) cannot combine image understanding with tool-calling in a
+    single request - some backends reject the request outright if ``tools``
+    is present alongside image content. So the image is described in its own
+    tools-free call, and that description is then handed to the normal
+    tool-capable model as plain text for the rest of the turn.
+    """
+    vision_messages: list[dict[str, Any]] = [
+        {"role": "system", "content": _VISION_SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": user_text or "Hva er dette?"},
+                {"type": "image_url", "image_url": {"url": image_url}},
+            ],
+        },
+    ]
+    response = vision_llm.chat_completion(vision_messages, tools=None, model=model)
+    return response.get("content") or ""
+
+
 def run_chat_turn(
     history: list[ChatMessage],
     *,
@@ -181,23 +216,46 @@ def run_chat_turn(
     final natural-language reply plus a record of what was actually added or
     cleared.
 
-    If any message in ``history`` carries a photo, the conversation is routed
-    to ``ASSISTANT_VISION_MODEL`` instead of the default ``ASSISTANT_MODEL``,
-    since most fast/cheap chat models are not vision-capable.
+    If any message in ``history`` carries a photo, that image is first
+    described by ``ASSISTANT_VISION_MODEL`` (a separate, tools-free call -
+    see ``_describe_image``), and the resulting text description replaces the
+    image in the conversation sent to the normal tool-capable model. This
+    keeps tool-calling working even when the vision model/provider doesn't
+    support tools itself.
     """
     settings = settings or get_settings()
     has_image = any(m.image for m in history)
 
     messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
-    messages.extend(_to_api_message(m) for m in history)
+
+    if has_image:
+        vision_llm = llm.for_vision()
+        vision_model = settings.assistant_vision_model
+        for message in history:
+            if message.image:
+                description = _describe_image(
+                    vision_llm,
+                    image_url=message.image,
+                    user_text=message.content,
+                    model=vision_model,
+                )
+                text = (
+                    f"{message.content}\n\n[Bildeanalyse: {description}]"
+                    if message.content
+                    else f"[Bildeanalyse: {description}]"
+                )
+                messages.append({"role": message.role, "content": text})
+            else:
+                messages.append(_to_api_message(message))
+    else:
+        messages.extend(_to_api_message(m) for m in history)
 
     added_items: list[AddedShoppingListItem] = []
     cleared_list = False
-    model = settings.assistant_vision_model if has_image else None
 
     for _ in range(_MAX_TOOL_ITERATIONS):
         message = llm.chat_completion(
-            messages, tools=[_ADD_ITEMS_TOOL, _CLEAR_LIST_TOOL], model=model
+            messages, tools=[_ADD_ITEMS_TOOL, _CLEAR_LIST_TOOL], model=None
         )
         tool_calls = message.get("tool_calls") or []
 

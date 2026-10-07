@@ -15,6 +15,7 @@ shopping-list writes, see ``app.assistant.chat``.
 """
 from __future__ import annotations
 
+import copy
 from typing import Any
 
 import httpx
@@ -44,6 +45,22 @@ class LlmClient:
     @property
     def is_configured(self) -> bool:
         return bool(self._settings.assistant_api_key)
+
+    def for_vision(self) -> "LlmClient":
+        """Return a client for image-bearing turns.
+
+        Vision turns can be routed to an entirely different provider than
+        the default text model via ``ASSISTANT_VISION_BASE_URL`` /
+        ``ASSISTANT_VISION_API_KEY`` (e.g. a self-hosted Ollama instance
+        running a local vision model), while regular text turns keep using
+        the main ``ASSISTANT_BASE_URL`` / ``ASSISTANT_API_KEY``. Both
+        vision settings default to the main ones when unset, so
+        single-provider setups are unaffected.
+        """
+        vision_settings = copy.copy(self._settings)
+        vision_settings.assistant_base_url = self._settings.assistant_vision_base_url
+        vision_settings.assistant_api_key = self._settings.assistant_vision_api_key
+        return LlmClient(settings=vision_settings, transport=self._transport)
 
     def _require_configured(self) -> str:
         if not self._settings.assistant_api_key:

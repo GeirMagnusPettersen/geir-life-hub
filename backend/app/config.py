@@ -94,6 +94,18 @@ class Settings:
         self.assistant_vision_model: str = os.environ.get(
             "ASSISTANT_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct"
         )
+        # Optional: route vision turns to an entirely different provider than
+        # the default text model, e.g. a self-hosted Ollama instance running
+        # a free local vision model, while text turns keep using a fast
+        # cloud model. Both fall back to the main ASSISTANT_BASE_URL /
+        # ASSISTANT_API_KEY when unset, so single-provider setups need no
+        # extra configuration.
+        self.assistant_vision_base_url: str = os.environ.get(
+            "ASSISTANT_VISION_BASE_URL", self.assistant_base_url
+        )
+        self.assistant_vision_api_key: str | None = os.environ.get(
+            "ASSISTANT_VISION_API_KEY", self.assistant_api_key
+        )
 
 
 @lru_cache
