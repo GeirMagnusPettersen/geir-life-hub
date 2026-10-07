@@ -40,6 +40,27 @@ class WeightEntryOut(BaseModel):
     weight_kg: float
     recorded_at: datetime
     note: str | None
+    source: str
+
+
+class WeightImportError(BaseModel):
+    """A single row that could not be imported, 1-indexed against the data
+    rows (the header row is not counted), so it lines up with what a user
+    sees when opening the CSV in a spreadsheet editor."""
+
+    row: int
+    reason: str
+
+
+class WeightImportResult(BaseModel):
+    """Summary of a CSV import run. Partial success is expected: Vektklubb
+    exports can contain rows Life Hub doesn't need (e.g. days with no
+    weigh-in), so bad rows are skipped and reported rather than failing the
+    whole import."""
+
+    imported: int
+    skipped: int
+    errors: list[WeightImportError] = []
 
 
 # --- Fluids ---------------------------------------------------------------

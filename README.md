@@ -377,6 +377,36 @@ tilgjengelig i dette utviklingsmiljøet. Kontrakten companionen skal bruke:
 Dette gir et testet, stabilt API-kontraktpunkt å bygge Android-companionen
 mot når det blir neste fase, uten å måtte endre backend-skjemaet da.
 
+### Vektklubb-vektimport (manuell CSV-fallback)
+
+Life Hub har ingen offisiell Vektklubb-API-integrasjon (Vektklubb eksponerer
+ingen offentlig API – se `PROJECT_BRIEF.md`), og det er bevisst utsatt til en
+egen, senere fase. Inntil videre dekkes issue #7 med en manuell
+fallback-mekanisme for å få historiske/periodiske vektmålinger fra Vektklubb
+inn i den eksisterende vektloggen, i stedet for å scrape Vektklubbs uoffisielle
+API:
+
+- `POST /weight/import` tar imot en CSV-fil (`multipart/form-data`, feltnavn
+  `file`) og oppretter én `WeightEntry` per gyldig rad, stemplet
+  `source="vektklubb_import"` (manuelt tastede innlegg via `POST /weight`
+  beholder `source="manual"`).
+- Kolonnenavn gjenkjennes case-insensitivt, på norsk eller engelsk:
+  dato-kolonne (`date`/`dato`/`recorded_at`/`tidspunkt`/`dag`), vekt-kolonne
+  (`weight_kg`/`weight`/`vekt`/`vekt (kg)`/`kg`), og en valgfri
+  notat-kolonne (`note`/`notat`/`kommentar`/`comment`).
+- Både komma- og semikolon-separerte CSV-filer støttes (gjenkjennes
+  automatisk), og vektverdier kan bruke komma som desimaltegn (norsk
+  konvensjon, f.eks. `82,5`). Datoformater `ÅÅÅÅ-MM-DD`, `DD.MM.ÅÅÅÅ`,
+  `DD/MM/ÅÅÅÅ`, `DD-MM-ÅÅÅÅ` og ISO-datetime støttes.
+- Importen er delvis-feilende: rader som ikke kan tolkes hoppes over og
+  rapporteres i svaret i stedet for å stoppe hele importen, siden
+  virkelige eksporter ofte er rotete. Svaret
+  (`{"imported": n, "skipped": n, "errors": [{"row": n, "reason": "..."}]}`)
+  viser antall importerte/hoppet-over rader og årsak per feilet rad.
+  Filer er begrenset til 1 MB / 2000 rader.
+- Frontend har et eget "Importer vekt fra Vektklubb (CSV)"-skjema i
+  logg-seksjonen for å laste opp filen manuelt.
+
 ## Lokal utvikling
 
 ### Backend
@@ -434,11 +464,12 @@ cd backend
 pytest -q
 ```
 
-Alle 65 tester (auth/passordpolicy, kjernemodeller for vekt/væske/kaffe/
+Alle tester (auth/passordpolicy, kjernemodeller for vekt/væske/kaffe/
 helseobservasjoner/søvn-aktivitet, enhetstoken-administrasjon, Health
-Connect-synk-kontrakten, dashboard-aggregering inkl. ukentlig trend og
-søvn/puls-tidsserie, KitchenOwl-adapter) skal passere. Testene kjører mot en
-SQLite in-memory-database og trenger ikke Postgres eller Docker.
+Connect-synk-kontrakten, den manuelle Vektklubb-CSV-importen,
+dashboard-aggregering inkl. ukentlig trend og søvn/puls-tidsserie,
+KitchenOwl-adapter) skal passere. Testene kjører mot en SQLite
+in-memory-database og trenger ikke Postgres eller Docker.
 
 ### Frontend
 
@@ -463,6 +494,10 @@ Implementert:
 
 - 2-brukers sesjonsbasert auth (Argon2-hashing, server-side minimumslengde på passord)
 - Manuell logging: vekt, væske, kaffe, helseobservasjoner
+- Manuell CSV-import/fallback for Vektklubb-vektdata (`POST /weight/import`,
+  issue #7) – ingen Vektklubb-API finnes, så historiske/periodiske
+  vektmålinger lastes opp manuelt i stedet, og lander i samme vektlogg-modell
+  som manuelle innlegg (skilt med `source`-feltet)
 - Søvn/aktivitet: datamodell/endepunkt som plassholder for senere Health Connect-sync
 - Enhetstoken-API (`/devices`) + `/sleep-activity/sync`: ferdig, testet
   backend-kontrakt for den fremtidige Health Connect Android-companionen
