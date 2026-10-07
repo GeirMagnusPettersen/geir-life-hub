@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">Geir Life Hub Companion</string>
+    <string name="label_backend_url">Backend-URL</string>
+    <string name="label_username">Brukernavn</string>
+    <string name="label_password">Passord</string>
+    <string name="action_login">Logg inn og registrer enhet</string>
+    <string name="action_sync">Synkroniser nå</string>
+    <string name="action_request_permissions">Be om Health Connect-tilgang</string>
+    <string name="status_not_logged_in">Ikke logget inn ennå.</string>
+    <string name="status_logged_in">Logget inn som %1$s. Enhet registrert.</string>
+    <string name="status_syncing">Synkroniserer\u2026</string>
+    <string name="status_sync_success">Synk fullført: %1$d søvn, %2$d treningsøkter.</string>
+    <string name="status_sync_failed">Synk feilet: %1$s (appen er ikke påvirket, prøv igjen senere).</string>
+    <string name="status_permissions_missing">Health Connect-tilgang mangler. Trykk \"Be om tilgang\".</string>
+    <string name="status_health_connect_unavailable">Health Connect er ikke installert eller støttet på denne enheten.</string>
+</resources>

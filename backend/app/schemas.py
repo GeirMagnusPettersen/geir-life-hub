@@ -108,6 +108,8 @@ class SleepActivityCreate(BaseModel):
     summary_date: date
     sleep_minutes: int | None = Field(default=None, ge=0, le=1440)
     steps: int | None = Field(default=None, ge=0)
+    resting_heart_rate: int | None = Field(default=None, ge=20, le=250)
+    avg_heart_rate: int | None = Field(default=None, ge=20, le=250)
     source: str = "manual"
 
 
@@ -119,6 +121,8 @@ class SleepActivityOut(BaseModel):
     summary_date: date
     sleep_minutes: int | None
     steps: int | None
+    resting_heart_rate: int | None
+    avg_heart_rate: int | None
     source: str
 
 
@@ -157,6 +161,8 @@ class HealthConnectSyncItem(BaseModel):
     summary_date: date
     sleep_minutes: int | None = Field(default=None, ge=0, le=1440)
     steps: int | None = Field(default=None, ge=0)
+    resting_heart_rate: int | None = Field(default=None, ge=20, le=250)
+    avg_heart_rate: int | None = Field(default=None, ge=20, le=250)
 
 
 class HealthConnectSyncRequest(BaseModel):
@@ -165,6 +171,47 @@ class HealthConnectSyncRequest(BaseModel):
 
 class HealthConnectSyncResult(BaseModel):
     synced: int
+
+
+# --- Workouts (Health Connect sync) -----------------------------------------
+#
+# Discrete workout/training sessions, as opposed to the daily rollup above.
+# Same auth contract: synced via a device token minted through /devices.
+
+
+class WorkoutSyncItem(BaseModel):
+    external_id: str = Field(min_length=1, max_length=128)
+    activity_type: str = Field(min_length=1, max_length=64)
+    start_time: datetime
+    end_time: datetime
+    duration_minutes: int | None = Field(default=None, ge=0)
+    calories: float | None = Field(default=None, ge=0)
+    avg_heart_rate: int | None = Field(default=None, ge=20, le=250)
+    distance_meters: float | None = Field(default=None, ge=0)
+
+
+class WorkoutSyncRequest(BaseModel):
+    sessions: list[WorkoutSyncItem] = Field(min_length=1, max_length=366)
+
+
+class WorkoutSyncResult(BaseModel):
+    synced: int
+
+
+class WorkoutOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    user_id: str
+    external_id: str
+    activity_type: str
+    start_time: datetime
+    end_time: datetime
+    duration_minutes: int | None
+    calories: float | None
+    avg_heart_rate: int | None
+    distance_meters: float | None
+    source: str
 
 
 # --- Reports ----------------------------------------------------------------

@@ -42,6 +42,8 @@ def upsert_sleep_activity(
     if existing is not None:
         existing.sleep_minutes = payload.sleep_minutes
         existing.steps = payload.steps
+        existing.resting_heart_rate = payload.resting_heart_rate
+        existing.avg_heart_rate = payload.avg_heart_rate
         existing.source = payload.source
         db.commit()
         db.refresh(existing)
@@ -52,6 +54,8 @@ def upsert_sleep_activity(
         summary_date=payload.summary_date,
         sleep_minutes=payload.sleep_minutes,
         steps=payload.steps,
+        resting_heart_rate=payload.resting_heart_rate,
+        avg_heart_rate=payload.avg_heart_rate,
         source=payload.source,
     )
     db.add(entry)
@@ -107,6 +111,8 @@ def sync_sleep_activity(
         if existing is not None:
             existing.sleep_minutes = item.sleep_minutes
             existing.steps = item.steps
+            existing.resting_heart_rate = item.resting_heart_rate
+            existing.avg_heart_rate = item.avg_heart_rate
             existing.source = "health_connect"
             existing.synced_at = now
         else:
@@ -116,6 +122,8 @@ def sync_sleep_activity(
                     summary_date=item.summary_date,
                     sleep_minutes=item.sleep_minutes,
                     steps=item.steps,
+                    resting_heart_rate=item.resting_heart_rate,
+                    avg_heart_rate=item.avg_heart_rate,
                     source="health_connect",
                     synced_at=now,
                 )

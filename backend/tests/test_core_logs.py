@@ -117,6 +117,33 @@ def test_health_connect_sync_upserts_and_stamps_source(auth_client):
     assert entries["2026-01-01"]["sleep_minutes"] == 480
 
 
+def test_health_connect_sync_accepts_heart_rate_fields(auth_client):
+    device_response = auth_client.post("/devices", json={"label": "Test phone"})
+    token = device_response.json()["token"]
+    headers = {"Authorization": "Bearer " + token}
+
+    sync_response = auth_client.post(
+        "/sleep-activity/sync",
+        headers=headers,
+        json={
+            "entries": [
+                {
+                    "summary_date": "2026-01-01",
+                    "sleep_minutes": 400,
+                    "steps": 5000,
+                    "resting_heart_rate": 52,
+                    "avg_heart_rate": 68,
+                }
+            ]
+        },
+    )
+    assert sync_response.status_code == 200
+
+    entry = auth_client.get("/sleep-activity").json()[0]
+    assert entry["resting_heart_rate"] == 52
+    assert entry["avg_heart_rate"] == 68
+
+
 def test_health_connect_sync_rejects_revoked_token(auth_client):
     device_response = auth_client.post("/devices", json={"label": "Revoked phone"})
     token_id = device_response.json()["id"]
