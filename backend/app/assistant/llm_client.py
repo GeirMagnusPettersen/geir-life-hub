@@ -57,15 +57,20 @@ class LlmClient:
         messages: list[dict[str, Any]],
         *,
         tools: list[dict[str, Any]] | None = None,
+        model: str | None = None,
     ) -> dict[str, Any]:
         """Call the chat-completions endpoint and return the first choice's message.
 
         Returns the raw ``message`` object from the API response, e.g.
         ``{"role": "assistant", "content": "...", "tool_calls": [...]}``.
+
+        ``model`` overrides ``ASSISTANT_MODEL`` for this call only, used to
+        route image-bearing turns to a separate vision-capable model (see
+        ``ASSISTANT_VISION_MODEL`` / ``app.assistant.chat``).
         """
         base_url = self._require_configured()
         payload: dict[str, Any] = {
-            "model": self._settings.assistant_model,
+            "model": model or self._settings.assistant_model,
             "messages": messages,
         }
         if tools:

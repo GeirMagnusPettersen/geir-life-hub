@@ -40,6 +40,7 @@ services:
       ASSISTANT_API_KEY: ${ASSISTANT_API_KEY:-}
       ASSISTANT_BASE_URL: ${ASSISTANT_BASE_URL:-https://api.openai.com/v1}
       ASSISTANT_MODEL: ${ASSISTANT_MODEL:-gpt-4o-mini}
+      ASSISTANT_VISION_MODEL: ${ASSISTANT_VISION_MODEL:-meta-llama/llama-4-scout-17b-16e-instruct}
     ports:
       - "8000:8000"
 

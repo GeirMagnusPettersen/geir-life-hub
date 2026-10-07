@@ -228,6 +228,61 @@ button.secondary-btn:disabled {
   white-space: pre-wrap;
 }
 
+.chat-image {
+  display: block;
+  max-width: 100%;
+  max-height: 12rem;
+  border-radius: 0.5rem;
+  margin-bottom: 0.35rem;
+  object-fit: cover;
+}
+
+.assistant-image-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  font-size: 1.2rem;
+  border: 1px solid #e3e8e5;
+  border-radius: 0.4rem;
+  background: #f0f4f2;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.assistant-image-label:hover {
+  background: #e3e8e5;
+}
+
+.assistant-image-preview {
+  position: relative;
+  display: inline-block;
+  margin: 0 0 0.5rem;
+}
+
+.assistant-image-preview img {
+  display: block;
+  max-height: 6rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e3e8e5;
+}
+
+.assistant-image-preview button {
+  position: absolute;
+  top: -0.4rem;
+  right: -0.4rem;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  border: none;
+  background: #b3261e;
+  color: white;
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
 .assistant-input-row {
   display: flex;
   align-items: flex-end;

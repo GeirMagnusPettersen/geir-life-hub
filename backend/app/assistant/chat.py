@@ -22,22 +22,27 @@ from __future__ import annotations
 import json
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.assistant.llm_client import AssistantProviderError, LlmClient
+from app.config import Settings, get_settings
 from app.integrations.kitchenowl import KitchenOwlClient, KitchenOwlNotConfiguredError
 
 SYSTEM_PROMPT = (
     "Du er en hjelpsom matlagingsassistent i Geir Life Hub, en husholdnings-app for "
     "Geir og Kristin. Diskuter middagsideer, oppskrifter og ingredienser med "
-    "brukeren på en uformell, kortfattet måte.\n\n"
+    "brukeren på en uformell, kortfattet måte. Brukeren kan også laste opp et "
+    "bilde av en matrett eller ingredienser; se da på bildet, beskriv kort hva "
+    "retten sannsynligvis er og hvilke ingredienser som trengs.\n\n"
     "Når brukeren har bestemt seg for en rett og eksplisitt ber om å legge "
     "ingrediensene til handlelisten (f.eks. 'legg det til handlelisten', "
     "'putt dette på listen'), kall funksjonen add_shopping_list_items med en "
     "liste av konkrete, handlelisteklare varenavn på norsk. Inkluder mengde når "
     "det er naturlig (f.eks. '500 g kjøttdeig', '1 boks hermetiske tomater'). "
     "Ikke kall funksjonen før brukeren faktisk har bedt om det, og ikke "
-    "dupliser varer brukeren allerede har nevnt at de har hjemme.\n\n"
+    "dupliser varer brukeren allerede har nevnt at de har hjemme. Dette gjelder "
+    "også når forslaget kom fra et bilde brukeren lastet opp - vent alltid på en "
+    "eksplisitt bekreftelse før du legger noe til listen.\n\n"
     "Hvis brukeren eksplisitt ber om å tømme handlelisten (f.eks. 'tøm "
     "handlelisten', 'slett alt på listen'), kall funksjonen "
     "clear_shopping_list. Dette er en destruktiv handling, så kall den kun "
@@ -88,6 +93,18 @@ _MAX_TOOL_ITERATIONS = 3
 class ChatMessage(BaseModel):
     role: Literal["user", "assistant"]
     content: str = Field(min_length=1, max_length=4000)
+    # Optional photo attached to a user message, as a base64 data URL (e.g.
+    # "data:image/jpeg;base64,..."). The frontend resizes/compresses the
+    # image client-side before encoding, so this cap is generous but not
+    # unbounded. Only ever set on "user" messages.
+    image: str | None = Field(default=None, max_length=4_000_000)
+
+    @field_validator("image")
+    @classmethod
+    def _validate_image_data_url(cls, value: str | None) -> str | None:
+        if value is not None and not value.startswith("data:image/"):
+            raise ValueError("image must be a data:image/... base64 URL")
+        return value
 
 
 class AddedShoppingListItem(BaseModel):
@@ -100,6 +117,25 @@ class ChatReply(BaseModel):
     reply: str
     added_items: list[AddedShoppingListItem] = Field(default_factory=list)
     cleared_list: bool = False
+
+
+def _to_api_message(message: ChatMessage) -> dict[str, Any]:
+    """Convert one conversation message to the OpenAI-compatible wire shape.
+
+    Plain text messages keep the simple ``content: str`` shape. Messages with
+    an attached photo use the multimodal ``content: [...]`` array shape (per
+    the OpenAI vision API convention), so the image actually reaches the
+    model instead of being silently dropped.
+    """
+    if not message.image:
+        return {"role": message.role, "content": message.content}
+    return {
+        "role": message.role,
+        "content": [
+            {"type": "text", "text": message.content},
+            {"type": "image_url", "image_url": {"url": message.image}},
+        ],
+    }
 
 
 def _add_items_to_shopping_list(
@@ -135,6 +171,7 @@ def run_chat_turn(
     *,
     llm: LlmClient,
     kitchenowl: KitchenOwlClient,
+    settings: Settings | None = None,
 ) -> ChatReply:
     """Run one turn of the meal-planning assistant conversation.
 
@@ -143,16 +180,24 @@ def run_chat_turn(
     shopping list, feeds the tool results back, and returns the model's
     final natural-language reply plus a record of what was actually added or
     cleared.
+
+    If any message in ``history`` carries a photo, the conversation is routed
+    to ``ASSISTANT_VISION_MODEL`` instead of the default ``ASSISTANT_MODEL``,
+    since most fast/cheap chat models are not vision-capable.
     """
+    settings = settings or get_settings()
+    has_image = any(m.image for m in history)
+
     messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
-    messages.extend({"role": m.role, "content": m.content} for m in history)
+    messages.extend(_to_api_message(m) for m in history)
 
     added_items: list[AddedShoppingListItem] = []
     cleared_list = False
+    model = settings.assistant_vision_model if has_image else None
 
     for _ in range(_MAX_TOOL_ITERATIONS):
         message = llm.chat_completion(
-            messages, tools=[_ADD_ITEMS_TOOL, _CLEAR_LIST_TOOL]
+            messages, tools=[_ADD_ITEMS_TOOL, _CLEAR_LIST_TOOL], model=model
         )
         tool_calls = message.get("tool_calls") or []
 

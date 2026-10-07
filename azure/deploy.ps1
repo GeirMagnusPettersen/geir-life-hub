@@ -202,6 +202,7 @@ $SessionSecret = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 48 |
 $AssistantApiKey = $env:ASSISTANT_API_KEY
 $AssistantBaseUrl = if ($env:ASSISTANT_BASE_URL) { $env:ASSISTANT_BASE_URL } else { "https://api.groq.com/openai/v1" }
 $AssistantModel = if ($env:ASSISTANT_MODEL) { $env:ASSISTANT_MODEL } else { "openai/gpt-oss-120b" }
+$AssistantVisionModel = if ($env:ASSISTANT_VISION_MODEL) { $env:ASSISTANT_VISION_MODEL } else { "meta-llama/llama-4-scout-17b-16e-instruct" }
 if (-not $AssistantApiKey) {
     Write-Host "`n(ASSISTANT_API_KEY not set in this shell -- meal assistant chat will stay disabled. Set `$env:ASSISTANT_API_KEY before re-running to enable it.)" -ForegroundColor Yellow
 }
@@ -228,6 +229,7 @@ if ($AssistantApiKey) {
     $BackendEnvVars += "ASSISTANT_API_KEY=$AssistantApiKey"
     $BackendEnvVars += "ASSISTANT_BASE_URL=$AssistantBaseUrl"
     $BackendEnvVars += "ASSISTANT_MODEL=$AssistantModel"
+    $BackendEnvVars += "ASSISTANT_VISION_MODEL=$AssistantVisionModel"
 }
 az containerapp up `
     --name $BackendAppName `

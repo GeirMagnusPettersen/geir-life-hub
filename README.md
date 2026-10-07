@@ -163,7 +163,7 @@ adapteren over – uten at bruker manuelt må skrive inn hver vare.
 
 - `GET /assistant/status` → `{"configured": bool}`, brukes av frontend for å
   vise en "ikke konfigurert ennå"-melding når `ASSISTANT_API_KEY` mangler.
-- `POST /assistant/chat` med `{"messages": [{"role": "user"|"assistant", "content": "..."}]}`
+- `POST /assistant/chat` med `{"messages": [{"role": "user"|"assistant", "content": "...", "image": "data:image/...;base64,... (valgfritt)"}]}`
   (klienten sender hele samtalehistorikken hver gang – backend er stateless)
   → `{"reply": "...", "added_items": [{"name": "...", "ok": true, "detail": null}]}`.
 - Sett `ASSISTANT_API_KEY`, `ASSISTANT_BASE_URL` (default
@@ -183,6 +183,18 @@ adapteren over – uten at bruker manuelt må skrive inn hver vare.
   ble lagt til (via KitchenOwl-adapteren) i svaret.
 - Krever at KitchenOwl-adapteren (over) er konfigurert, siden varene legges
   til der.
+- **Bilde av en rett → forslag til handleliste**: frontend lar brukeren
+  legge ved et bilde (f.eks. av en middag) til en melding via 📷-knappen i
+  chat-en. Bildet skaleres/komprimeres client-side (maks ~1024px, JPEG) før
+  det sendes som en `data:image/...`-URL. Så snart en melding i historikken
+  inneholder et bilde, rutes *kun den turen* til en egen, multimodal
+  (vision-kapabel) modell satt via `ASSISTANT_VISION_MODEL` (default
+  `meta-llama/llama-4-scout-17b-16e-instruct` – Groqs bilde-modell), mens
+  vanlig tekst-chat fortsatt bruker `ASSISTANT_MODEL`. Assistenten foreslår
+  ingredienser ut fra bildet, men legger dem – som ellers – aldri til
+  handlelisten uten eksplisitt bekreftelse fra brukeren. Merk: tilgang til
+  vision-modellen avhenger av din Groq-konto/-tier; bytt `ASSISTANT_VISION_MODEL`
+  til en annen OpenAI-kompatibel multimodal modell om nødvendig.
 
 ### Dashboard-rapport
 

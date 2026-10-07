@@ -294,16 +294,21 @@ function renderAssistantHistory(): string {
     return `
       <p class="assistant-empty">
         Diskuter en middag, og be assistenten legge ingrediensene til handlelisten når du har bestemt deg.
+        Du kan også laste opp et bilde av en rett.
       </p>
     `;
   }
   return assistantHistory
     .map((msg) => {
       const isUser = msg.role === "user";
+      const image = msg.image
+        ? `<img class="chat-image" src="${msg.image}" alt="Opplastet bilde" />`
+        : "";
       return `
         <div class="chat-row chat-row-${isUser ? "user" : "assistant"}">
           <div class="chat-bubble chat-bubble-${isUser ? "user" : "assistant"}">
             <span class="chat-sender">${isUser ? "Du" : "Assistent"}</span>
+            ${image}
             <span class="chat-text">${escapeHtml(msg.content)}</span>
           </div>
         </div>
@@ -322,13 +327,56 @@ function scrollAssistantHistoryToBottom(): void {
   });
 }
 
+// Holds a base64 data URL for a photo the user picked but hasn't sent yet,
+// so it can be attached to the next submitted chat message.
+let pendingAssistantImage: string | null = null;
+
+const ASSISTANT_IMAGE_MAX_DIMENSION = 1024;
+const ASSISTANT_IMAGE_JPEG_QUALITY = 0.8;
+
+// Resizes/compresses a picked photo client-side (via an offscreen canvas)
+// before it is base64-encoded and sent to the backend, so phone-camera
+// photos don't blow past request-size/LLM token limits.
+async function resizeImageToDataUrl(file: File): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(
+    1,
+    ASSISTANT_IMAGE_MAX_DIMENSION / Math.max(bitmap.width, bitmap.height)
+  );
+  const width = Math.round(bitmap.width * scale);
+  const height = Math.round(bitmap.height * scale);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Kunne ikke behandle bildet.");
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  return canvas.toDataURL("image/jpeg", ASSISTANT_IMAGE_JPEG_QUALITY);
+}
+
+function renderAssistantImagePreview(): string {
+  if (!pendingAssistantImage) return "";
+  return `
+    <div class="assistant-image-preview">
+      <img src="${pendingAssistantImage}" alt="Valgt bilde" />
+      <button type="button" id="assistant-image-remove" aria-label="Fjern bilde">✕</button>
+    </div>
+  `;
+}
+
 function renderAssistantChatUI(): string {
   return `
     <div id="assistant-history" class="assistant-history">${renderAssistantHistory()}</div>
+    <div id="assistant-image-preview-slot">${renderAssistantImagePreview()}</div>
     <form id="assistant-form" class="log-form assistant-input-row">
       <label class="assistant-input-label">
         Melding
         <input name="message" type="text" maxlength="4000" required placeholder="f.eks. jeg tenkte på taco i kveld" autocomplete="off" />
+      </label>
+      <label class="assistant-image-label" title="Last opp bilde av en rett">
+        📷
+        <input id="assistant-image-input" name="image" type="file" accept="image/*" capture="environment" hidden />
       </label>
       <button type="submit">Send</button>
     </form>
@@ -336,17 +384,48 @@ function renderAssistantChatUI(): string {
   `;
 }
 
+async function handleAssistantImageChange(event: Event): Promise<void> {
+  const input = event.currentTarget as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  const feedbackEl = document.getElementById("assistant-feedback");
+  try {
+    pendingAssistantImage = await resizeImageToDataUrl(file);
+    const slot = document.getElementById("assistant-image-preview-slot");
+    if (slot) slot.innerHTML = renderAssistantImagePreview();
+    document
+      .getElementById("assistant-image-remove")
+      ?.addEventListener("click", () => {
+        pendingAssistantImage = null;
+        input.value = "";
+        if (slot) slot.innerHTML = renderAssistantImagePreview();
+      });
+  } catch (err) {
+    console.error(err);
+    if (feedbackEl) {
+      feedbackEl.textContent = "Kunne ikke laste bildet.";
+      feedbackEl.classList.add("error");
+    }
+  } finally {
+    input.value = "";
+  }
+}
+
 async function handleAssistantSubmit(event: SubmitEvent): Promise<void> {
   event.preventDefault();
   const form = event.currentTarget as HTMLFormElement;
   const data = new FormData(form);
   const text = String(data.get("message") ?? "").trim();
-  if (!text) return;
+  const image = pendingAssistantImage ?? undefined;
+  if (!text && !image) return;
 
-  assistantHistory.push({ role: "user", content: text });
+  assistantHistory.push({ role: "user", content: text || "(bilde)", image });
+  pendingAssistantImage = null;
   const historyEl = document.getElementById("assistant-history");
+  const previewSlot = document.getElementById("assistant-image-preview-slot");
   const feedbackEl = document.getElementById("assistant-feedback");
   if (historyEl) historyEl.innerHTML = renderAssistantHistory();
+  if (previewSlot) previewSlot.innerHTML = renderAssistantImagePreview();
   scrollAssistantHistoryToBottom();
   form.reset();
 
@@ -403,6 +482,10 @@ async function loadAssistantSection(): Promise<void> {
     scrollAssistantHistoryToBottom();
     const form = document.getElementById("assistant-form") as HTMLFormElement | null;
     form?.addEventListener("submit", handleAssistantSubmit);
+    const imageInput = document.getElementById(
+      "assistant-image-input"
+    ) as HTMLInputElement | null;
+    imageInput?.addEventListener("change", handleAssistantImageChange);
   } catch (err) {
     container.innerHTML = "<p>Kunne ikke laste assistentstatus.</p>";
     console.error(err);

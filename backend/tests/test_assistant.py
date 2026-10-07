@@ -85,9 +85,11 @@ class _StubLlmClient:
     def __init__(self, responses: list[dict]) -> None:
         self._responses = list(responses)
         self.seen_messages: list[list[dict]] = []
+        self.seen_models: list[str | None] = []
 
-    def chat_completion(self, messages, *, tools=None):
+    def chat_completion(self, messages, *, tools=None, model=None):
         self.seen_messages.append(messages)
+        self.seen_models.append(model)
         return self._responses.pop(0)
 
 
@@ -125,6 +127,60 @@ def test_run_chat_turn_returns_plain_reply_when_no_tool_call(monkeypatch):
 
     assert result.reply == "Hva har du lyst på til middag?"
     assert result.added_items == []
+
+
+def test_run_chat_turn_uses_default_model_without_image(monkeypatch):
+    llm = _StubLlmClient([{"role": "assistant", "content": "Ok!"}])
+    kitchenowl = _kitchenowl_mock_client(monkeypatch)
+    settings = _settings_with_assistant(monkeypatch)
+
+    run_chat_turn(
+        [ChatMessage(role="user", content="Hei")],
+        llm=llm,
+        kitchenowl=kitchenowl,
+        settings=settings,
+    )
+
+    assert llm.seen_models == [None]
+
+
+def test_run_chat_turn_routes_image_messages_to_vision_model(monkeypatch):
+    llm = _StubLlmClient(
+        [{"role": "assistant", "content": "Dette ser ut som en tacogryte!"}]
+    )
+    kitchenowl = _kitchenowl_mock_client(monkeypatch)
+    settings = _settings_with_assistant(monkeypatch)
+    monkeypatch.setenv("ASSISTANT_VISION_MODEL", "vision-test-model")
+    settings = Settings()
+
+    result = run_chat_turn(
+        [
+            ChatMessage(
+                role="user",
+                content="Hva er dette?",
+                image="data:image/jpeg;base64,/9j/4AAQSkZJRg==",
+            )
+        ],
+        llm=llm,
+        kitchenowl=kitchenowl,
+        settings=settings,
+    )
+
+    assert result.reply == "Dette ser ut som en tacogryte!"
+    assert llm.seen_models == ["vision-test-model"]
+    sent_content = llm.seen_messages[0][-1]["content"]
+    assert sent_content == [
+        {"type": "text", "text": "Hva er dette?"},
+        {
+            "type": "image_url",
+            "image_url": {"url": "data:image/jpeg;base64,/9j/4AAQSkZJRg=="},
+        },
+    ]
+
+
+def test_chat_message_rejects_non_data_url_image():
+    with pytest.raises(Exception):
+        ChatMessage(role="user", content="hei", image="not-a-data-url")
 
 
 def test_run_chat_turn_executes_tool_call_and_adds_items(monkeypatch):

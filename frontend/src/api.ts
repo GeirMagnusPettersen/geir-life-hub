@@ -95,6 +95,7 @@ export interface AssistantStatus {
 export interface AssistantChatMessage {
   role: "user" | "assistant";
   content: string;
+  image?: string;
 }
 
 export interface AssistantAddedItem {

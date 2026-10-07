@@ -87,6 +87,13 @@ class Settings:
         self.assistant_model: str = os.environ.get(
             "ASSISTANT_MODEL", "llama-3.3-70b-versatile"
         )
+        # Separate model used only for turns that include a photo (e.g. "what's
+        # this dish?"). The default text model above is not vision-capable, so
+        # a distinct, vision-capable model is used for those turns instead;
+        # override via env if your provider names it differently.
+        self.assistant_vision_model: str = os.environ.get(
+            "ASSISTANT_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct"
+        )
 
 
 @lru_cache
