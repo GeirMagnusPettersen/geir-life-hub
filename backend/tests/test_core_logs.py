@@ -7,6 +7,7 @@ def test_create_and_list_weight_entry(auth_client):
     body = response.json()
     assert body["weight_kg"] == 82.5
     assert body["note"] == "morning"
+    assert body["source"] == "manual"
 
     response = auth_client.get("/weight")
     assert response.status_code == 200

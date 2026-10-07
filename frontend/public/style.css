@@ -318,6 +318,12 @@ button.secondary-btn:disabled {
   padding: 0.75rem;
 }
 
+.log-form-hint {
+  font-size: 0.8rem;
+  color: #5b6b63;
+  margin: 0.25rem 0 0.5rem;
+}
+
 #log-feedback {
   min-height: 1.2rem;
   color: #1f6f54;
