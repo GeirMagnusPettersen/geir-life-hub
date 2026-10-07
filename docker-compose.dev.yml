@@ -1,0 +1,38 @@
+# Local development overlay with live code-reload. Not used in production/Azure.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# - backend: bind-mounts ./backend/app and ./backend/migrations so code
+#   changes take effect immediately via uvicorn --reload (no rebuild needed).
+# - frontend: builds the Dockerfile's "dev" stage and runs the Vite dev
+#   server with hot module replacement, bind-mounting ./frontend so edits
+#   to src/ are picked up instantly. node_modules is kept in a named volume
+#   so the container's own install isn't shadowed by the host bind mount.
+#
+# Rebuilds are still needed after changing requirements.txt/package.json.
+
+services:
+  backend:
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/migrations:/app/migrations
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  frontend:
+    build:
+      context: ./frontend
+      target: dev
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    # !override replaces the base file's "5173:80" (nginx) mapping instead of
+    # appending to it (Compose merges port lists by default, which would try
+    # to bind host port 5173 twice and fail). Requires Docker Compose v2.24+.
+    ports: !override
+      - "5173:5173"
+
+volumes:
+  frontend_node_modules:

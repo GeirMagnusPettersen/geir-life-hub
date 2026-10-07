@@ -64,6 +64,35 @@ konfigurert) i stedet for å feile tungt.
 4. Åpne frontend på <http://localhost:5173> og logg inn, eller test API-et
    direkte på <http://localhost:8000/docs> (FastAPI sin auto-genererte Swagger-UI).
 
+### Live-reload for lokal utvikling (Docker)
+
+`docker compose up --build` over bygger produksjonslike images (backend uten
+`--reload`, frontend som en statisk nginx-bygd PWA) – praktisk for å verifisere
+at alt fungerer likt som i Azure, men upraktisk når du endrer kode ofte siden
+du må rebuilde for hver endring.
+
+For rask iterasjon uten rebuild, bruk `docker-compose.dev.yml` i tillegg:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+```
+
+Dette overstyrer kun reload-/mount-oppførselen (samme Postgres, samme
+miljøvariabler):
+
+- **backend** kjører `uvicorn --reload` med `./backend/app` og
+  `./backend/migrations` bind-mountet – kodeendringer tar effekt umiddelbart,
+  ingen rebuild nødvendig.
+- **frontend** kjører Vite sin dev-server (med hot module replacement) i
+  stedet for nginx-bygget, med `./frontend` bind-mountet – fortsatt på
+  <http://localhost:5173>.
+
+Rebuild er fortsatt nødvendig etter endringer i `requirements.txt` eller
+`package.json`. `docker-compose.dev.yml` lastes **ikke** automatisk av
+`docker compose up` alene – den må alltid spesifiseres eksplisitt med `-f`
+slik at vanlig `docker compose up --build` fortsatt gir en produksjonslik
+oppsett.
+
 ### KitchenOwl-adapter (valgfritt)
 
 Sett `KITCHENOWL_BASE_URL`, `KITCHENOWL_USERNAME`, `KITCHENOWL_PASSWORD` og

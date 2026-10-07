@@ -11,6 +11,17 @@ RUN npm install
 COPY . .
 RUN npm run build
 
+# Dev stage: used by docker-compose.dev.yml for live-reload local development
+# via the Vite dev server (with HMR) instead of a static nginx build. Not
+# used by the production image below.
+FROM node:20.18-alpine AS dev
+WORKDIR /app
+COPY package.json ./
+RUN npm install
+COPY . .
+EXPOSE 5173
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
+
 FROM nginx:1.27-alpine
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
