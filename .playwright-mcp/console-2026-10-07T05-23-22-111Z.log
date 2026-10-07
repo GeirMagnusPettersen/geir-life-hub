@@ -1,0 +1,5 @@
+[   -8013ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:8000/auth/me:0
+[   -7996ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5173/favicon.ico:0
+[   -8010ms] [ERROR] Error: 401: {"detail":"Not authenticated"}
+    at l (http://localhost:5173/assets/index-DQnu_p2Z.js:1:933)
+    at async v (http://localhost:5173/assets/index-DQnu_p2Z.js:193:814) @ http://localhost:5173/assets/index-DQnu_p2Z.js:206

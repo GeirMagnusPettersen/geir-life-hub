@@ -499,6 +499,42 @@ async function refreshSummaries(): Promise<void> {
   }
 }
 
+type TabId = "assistant" | "overview" | "log";
+
+const TABS: { id: TabId; label: string }[] = [
+  { id: "assistant", label: "Middagsassistent" },
+  { id: "overview", label: "Oversikt" },
+  { id: "log", label: "Registrer" },
+];
+
+function renderNav(activeTab: TabId): string {
+  return `
+    <nav class="main-nav">
+      ${TABS.map(
+        (tab) => `
+          <button type="button" data-tab="${tab.id}" class="nav-tab${tab.id === activeTab ? " active" : ""}">
+            ${tab.label}
+          </button>
+        `,
+      ).join("")}
+    </nav>
+  `;
+}
+
+function wireNav(): void {
+  const buttons = document.querySelectorAll<HTMLButtonElement>("button[data-tab]");
+  const panels = document.querySelectorAll<HTMLElement>("[data-tab-panel]");
+  buttons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const target = button.dataset.tab as TabId;
+      buttons.forEach((b) => b.classList.toggle("active", b.dataset.tab === target));
+      panels.forEach((p) => {
+        p.hidden = p.dataset.tabPanel !== target;
+      });
+    });
+  });
+}
+
 async function renderDashboard(): Promise<void> {
   try {
     const me = await api.me();
@@ -511,12 +547,19 @@ async function renderDashboard(): Promise<void> {
           <p>Innlogget som ${me.display_name}</p>
           <button id="logout">Logg ut</button>
         </header>
-        <section class="summaries">
-          ${report.users.map(renderSummaryCard).join("")}
+        ${renderNav("assistant")}
+        <section data-tab-panel="assistant" class="tab-panel">
+          ${renderAssistantSection()}
+          ${renderKitchenOwlSection()}
         </section>
-        ${renderLogForms()}
-        ${renderKitchenOwlSection()}
-        ${renderAssistantSection()}
+        <section data-tab-panel="overview" class="tab-panel" hidden>
+          <div class="summaries">
+            ${report.users.map(renderSummaryCard).join("")}
+          </div>
+        </section>
+        <section data-tab-panel="log" class="tab-panel" hidden>
+          ${renderLogForms()}
+        </section>
       </main>
     `;
 
@@ -525,6 +568,7 @@ async function renderDashboard(): Promise<void> {
       renderLogin();
     });
 
+    wireNav();
     wireLogForms(() => {
       void refreshSummaries();
     });
