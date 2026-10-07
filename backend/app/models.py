@@ -86,6 +86,13 @@ class DeviceToken(Base):
 
 
 class WeightEntry(Base):
+    """`source` distinguishes how the entry got here: "manual" (typed into
+    the UI, the default) vs "vektklubb_import" (bulk-loaded from a Vektklubb
+    CSV export via the /weight/import fallback endpoint - see
+    app/routers/weight.py). This is a manual/periodic import fallback only;
+    there is no live Vektklubb API integration (none exists, per
+    PROJECT_BRIEF.md)."""
+
     __tablename__ = "weight_entries"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid_str)
@@ -93,6 +100,7 @@ class WeightEntry(Base):
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     weight_kg: Mapped[float] = mapped_column(Float, nullable=False)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source: Mapped[str] = mapped_column(String(32), default="manual", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
