@@ -117,61 +117,27 @@ dashboardet viser dette per bruker, med trendserien i en utvidbar tabell
 
 ## Kom i gang (skyhosting)
 
-Docker Compose over er ment for selvhosting på egen maskin/VPS. Hvis du i
-stedet vil ha appen kjørende på en administrert skytjeneste, er dette
-fremgangsmåten (bekreftet live i Render/Neon sine dashbord):
+Docker Compose over er ment for selvhosting på egen maskin/VPS. Den eneste
+sky-løsningen for Geir Life Hub er **Azure** (via FTE-kreditten, se under) –
+ingen andre skytjenester er i bruk eller vedlikeholdes for dette prosjektet.
 
-> **Viktig oppdagelse (oppdatert, testet live nov. 2025):** Vi antok
-> tidligere at det å opprette enkelttjenester manuelt på Render
-> (**New +** → **Web Service**, ikke Blueprint) unngår kredittkort-kravet
-> som Renders **Blueprint**-flyt (`render.yaml`) og egen **Postgres**-
-> provisjonering har. **Dette viste seg å være feil.** Et faktisk forsøk på
-> å opprette én enkelt Web Service manuelt – testet både med Docker-runtime
-> og med native Python 3-runtime – viste at Render ber om kortverifisering
-> ("Add Card", en midlertidig $1 USD-autorisasjon, ifølge Render selv ikke
-> en reell belastning) idet du trykker **Deploy web service**, uavhengig av
-> hvilken plan (inkludert $0/mnd Free) eller runtime du har valgt. Dette
-> ser ut til å være en konto-/anti-svindel-policy på Render, ikke knyttet
-> til Blueprint vs. manuell opprettelse eller Docker vs. native runtime.
->
-> [Neon](https://neon.tech) (database) krever fortsatt **ikke** kort og
-> fungerer fint som ekstern Postgres uansett hvilken vei du velger for
-> compute. Andre undersøkte gratisalternativer for compute (Koyeb,
-> PythonAnywhere) har tilsvarende eller verre begrensninger: Koyeb krever
-> også kort ved registrering, og PythonAnywheres gratisnivå tillater ikke
-> utgående nettverkstilkobling til en ekstern Postgres-database som Neon.
->
-> **Praktisk konklusjon:** et *helt* kortfritt cloud-oppsett for
-> backend-compute har vi ikke funnet en fungerende løsning for per nå for
-> allmenn bruk. De reelle alternativene er (a) legge inn et kort hos Render
-> for verifiseringssteget og bli på gratisplanen (ingen løpende kostnad så
-> lenge ressursgrensene ikke overskrides), (b) kjøre backend/frontend selv
-> via Docker Compose-oppsettet over, på egen maskin/NAS/VPS – som aldri
-> krever kort siden det er din egen maskinvare, eller (c) **Azure for
-> Students** hvis du er fulltidsstudent (se under) – eneste undersøkte
-> skyalternativ som verken krever kort eller er begrenset av nettverks-
-> policy, men krever skole-e-post/studentbevis for verifisering.
->
-> **Microsoft/Azure-alternativ:** vanlig **Azure Free Account** krever
-> kredittkort ved registrering (samme type identitetsverifisering som
-> Render), så det er ikke et kortfritt alternativ for de fleste. Det finnes
-> derimot et **bekreftet internt Microsoft-ansattgode** som er relevant her:
-> som **Microsoft FTE** er du kvalifisert for **$150 Azure-kreditt per
-> måned** (~$1 800/år) via Visual Studio Enterprise/FTE-abonnementet – se
-> intern side *"Activating Your Azure Visual Studio FTE Subscription"* på
-> SharePoint (`AELBootCamp`). Aktivering krever en **personlig
-> Microsoft-konto/e-post** (ikke bare `@microsoft.com`) koblet til FTE-
-> identiteten din. Dette dekker trygt både backend (App Service eller
-> Container Apps) og database (Azure Database for PostgreSQL) for et
-> hobbyoppsett som Geir Life Hub, og krever ikke eget kredittkort utover det
-> som eventuelt kreves for selve FTE-/VS-abonnementsaktiveringen internt.
-> Dette er det anbefalte sky-alternativet fremfor Render, siden det er
-> bekreftet gratis innenfor kreditten og ikke avhenger av studentstatus.
-> (Alternativt finnes **[Azure for Students](https://azure.microsoft.com/free/students/)**
-> for de uten FTE-tilgang: ingen kort, kun skole-e-post/studentbevis, $100
-> kreditt/år.)
+> **Hvorfor Azure og ikke f.eks. Render/Neon:** disse ble vurdert tidligere,
+> men forkastet. Render krever kredittkort-verifisering før det oppretter en
+> Web Service, selv på $0/mnd-planen (bekreftet live, gjelder både Blueprint-
+> og manuell opprettelse, Docker- og native runtime). Andre gratisalternativer
+> for compute (Koyeb, PythonAnywhere) har tilsvarende eller verre
+> begrensninger. Azure via **Microsoft FTE-ansattgodet** ($150 Azure-kreditt
+> per måned, ~$1 800/år, via Visual Studio Enterprise/FTE-abonnementet – se
+> intern SharePoint-side *"Activating Your Azure Visual Studio FTE
+> Subscription"*, `AELBootCamp`) er det eneste skyalternativet som verken
+> krever eget kredittkort eller har disse begrensningene, og det er allerede
+> satt opp og kjører. (Vanlig **Azure Free Account** krever for øvrig kort
+> ved registrering, i likhet med Render – det er FTE-godet spesifikt som gjør
+> Azure kortfritt her. Uten FTE-tilgang finnes
+> **[Azure for Students](https://azure.microsoft.com/free/students/)** som
+> alternativ: ingen kort, kun skole-e-post/studentbevis, $100 kreditt/år.)
 
-### Azure-deployment (anbefalt, via FTE-kreditten)
+### Azure-deployment
 
 Et ferdig script ligger i [`azure/deploy.ps1`](azure/deploy.ps1). Det er vanlig
 `az` CLI (ingen Bicep/Terraform) og oppretter en resource group, en Azure
@@ -231,60 +197,19 @@ hobbyoppsett.
 >   sjekker nå provisioning-state og sletter+gjenoppretter automatisk hvis
 >   den henger fast i `Failed`, før det forsøker å deploye på nytt.
 
-1. Push repoet til GitHub (allerede gjort for `geir-life-hub`).
-2. **Database (Neon, gratis, uten kort):**
-   - Gå til [neon.tech](https://neon.tech) → **Get started** → logg inn med
-     GitHub/Google/e-post (ingen kort kreves).
-   - Opprett et nytt prosjekt (f.eks. `lifehub`). Neon oppretter automatisk
-     en database og gir deg en tilkoblingsstreng av typen
-     `postgresql://bruker:passord@host/db?sslmode=require`.
-   - Kopier denne – den brukes som `DATABASE_URL` under. Backend normaliserer
-     selv `postgres://`/`postgresql://` til `postgresql+psycopg://`, så du
-     trenger ikke redigere strengen manuelt.
-3. **Backend (Render Web Service, gratis plan – krever kortverifisering, se boks over):**
-   - Render-dashbord → **New +** → **Web Service** (ikke Blueprint) → koble
-     til GitHub (autoriser Render-appen for repoet) → velg `geir-life-hub`.
-   - Velg compute-plan **Free** ($0/mnd).
-   - Sett **Root Directory** = `backend` og **Dockerfile Path** =
-     `backend/Dockerfile` (build-contexten må være `backend/`-mappen siden
-     Dockerfilens `COPY`-instruksjoner er relative til den).
-   - Legg til miljøvariabler:
-     - `ENVIRONMENT` = `production`
-     - `SESSION_SECRET_KEY` = bruk Renders **Generate**-knapp (ikke skriv
-       inn en egen verdi)
-     - `DATABASE_URL` = tilkoblingsstrengen fra Neon (steg 2)
-     - `CORS_ORIGINS` = frontendens URL (steg 4 – kan oppdateres etterpå)
-     - `MIN_PASSWORD_LENGTH` = `10` (valgfritt, dette er default)
-   - Klikk **Deploy web service**.
-4. **Frontend (Render Static Site, gratis):**
-   - **New +** → **Static Site** → velg samme repo.
-   - **Root Directory** = `frontend`, **Build Command** = `npm run build`,
-     **Publish Directory** = `dist`.
-   - Miljøvariabel `VITE_API_BASE_URL` = backendens Render-URL fra steg 3
-     (f.eks. `https://lifehub-backend.onrender.com`).
-5. Gå tilbake til backend-tjenesten og oppdater `CORS_ORIGINS` til
-   frontendens faktiske URL fra steg 4, så redeploy.
-6. Opprett de to husholdningsbrukerne via Render sitt **Shell**-fane for
-   `lifehub-backend`-tjenesten (tilsvarende `docker compose exec` lokalt):
+Etter at scriptet er ferdig, opprett de to husholdningsbrukerne via
+`az containerapp exec` mot `lifehub-backend` (tilsvarende `docker compose exec`
+lokalt):
 
-   ```bash
-   python -m app.cli create-user --username geir --display-name Geir
-   python -m app.cli create-user --username kristin --display-name Kristin
-   ```
-
-7. Åpne frontendens Render-URL i nettleseren.
+```bash
+python -m app.cli create-user --username geir --display-name Geir
+python -m app.cli create-user --username kristin --display-name Kristin
+```
 
 KitchenOwl-adapteren er valgfri også her – sett `KITCHENOWL_BASE_URL` m.fl.
-som miljøvariabler på `lifehub-backend`-tjenesten i Render-dashbordet hvis du
-har en egen selvhostet KitchenOwl-instans å koble på.
-
-> Merk: den gratis Render-planen "sover" tjenester etter ca. 15 minutters
-> inaktivitet (første forespørsel etter en pause kan ta 30–60 sekunder), og
-> Neons gratisplan har også en "scale-to-zero"-oppførsel for inaktive
-> databaser (vekkes automatisk ved neste spørring). Ingen av delene koster
-> noe på gratisnivå (Render ber bare om kortet som en midlertidig $1-
-> verifisering, ikke en løpende belastning, se boksen over). Oppgrader til
-> betalte planer hos Render/Neon hvis du vil ha alltid-på drift.
+som miljøvariabler på `lifehub-backend`-container-appen hvis du har en egen
+selvhostet KitchenOwl-instans å koble på (se `azure/deploy.ps1` for hvordan
+miljøvariabler settes på appene).
 
 ### Health Connect-sync-kontrakt (forberedelse for Android-companion)
 
