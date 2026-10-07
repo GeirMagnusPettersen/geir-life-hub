@@ -6,6 +6,12 @@ WORKDIR /app
 # VITE_API_BASE_URL=https://backend.example.com .`
 ARG VITE_API_BASE_URL=""
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+# Optional override for environments where the public npm registry
+# (registry.npmjs.org) is unreachable, e.g. behind a corporate proxy that
+# only allows an internal package mirror. Defaults to the public registry,
+# so this is a no-op unless NPM_REGISTRY is set locally (see .env.example).
+ARG NPM_REGISTRY=https://registry.npmjs.org
+ENV NPM_CONFIG_REGISTRY=$NPM_REGISTRY
 COPY package.json ./
 RUN npm install
 COPY . .
@@ -16,6 +22,8 @@ RUN npm run build
 # used by the production image below.
 FROM node:20.18-alpine AS dev
 WORKDIR /app
+ARG NPM_REGISTRY=https://registry.npmjs.org
+ENV NPM_CONFIG_REGISTRY=$NPM_REGISTRY
 COPY package.json ./
 RUN npm install
 COPY . .

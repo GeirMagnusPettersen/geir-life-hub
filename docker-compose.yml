@@ -19,6 +19,8 @@ services:
   backend:
     build:
       context: ./backend
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
     restart: unless-stopped
     depends_on:
       db:
@@ -44,6 +46,13 @@ services:
   frontend:
     build:
       context: ./frontend
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+        # Baked into the static build at build time (Vite inlines VITE_*
+        # vars), so the browser's JS calls the backend directly at this
+        # origin. Must match where the backend is actually reachable from
+        # the user's browser - override via .env for non-localhost deploys.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
     restart: unless-stopped
     depends_on:
       - backend
