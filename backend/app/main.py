@@ -18,6 +18,7 @@ from app.routers import (
     reports,
     sleep_activity,
     weight,
+    workouts,
 )
 
 settings = get_settings()
@@ -55,6 +56,7 @@ app.include_router(fluids.router)
 app.include_router(coffee.router)
 app.include_router(health_observations.router)
 app.include_router(sleep_activity.router)
+app.include_router(workouts.router)
 app.include_router(reports.router)
 app.include_router(kitchenowl.router)
 app.include_router(assistant.router)

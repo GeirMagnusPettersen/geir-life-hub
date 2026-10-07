@@ -4,9 +4,13 @@ Scope note: we deliberately do NOT model full nutrition/calorie tracking
 (owned by VG Vektklubb) or full workout logs (owned by Garmin). Weight is
 logged here manually because the brief wants Life Hub able to show/aggregate
 it even though Vektklubb is the primary source. Sleep/activity is a thin
-placeholder destined to be filled by a future Health Connect sync job.
-Recipes/shopping lists are intentionally NOT modeled here; see
-app/integrations/kitchenowl.py for the adapter approach instead.
+placeholder filled by the Health Connect companion sync job (see
+app/routers/sleep_activity.py and app/routers/workouts.py).
+`WorkoutSession` is an aggregated overview of sessions synced from Health
+Connect (start/end, type, calories, heart rate) - not a full training log
+with routes/sets/splits, which stays Garmin's job. Recipes/shopping lists
+are intentionally NOT modeled here; see app/integrations/kitchenowl.py for
+the adapter approach instead.
 """
 from __future__ import annotations
 
@@ -136,8 +140,10 @@ class HealthObservation(Base):
 
 class SleepActivitySummary(Base):
     """Daily sleep/activity placeholder. `source` defaults to "manual" today;
-    a future Health Connect companion sync will write rows with
-    source="health_connect" without needing a schema change."""
+    the Health Connect companion sync writes rows with
+    source="health_connect" via the same model (no schema change needed).
+    `resting_heart_rate`/`avg_heart_rate` are daily aggregates (bpm); per-
+    workout heart rate lives on `WorkoutSession` instead."""
 
     __tablename__ = "sleep_activity_summaries"
     __table_args__ = (UniqueConstraint("user_id", "summary_date", name="uq_sleep_activity_user_date"),)
@@ -147,7 +153,42 @@ class SleepActivitySummary(Base):
     summary_date: Mapped[date] = mapped_column(Date, nullable=False)
     sleep_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     steps: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    resting_heart_rate: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    avg_heart_rate: Mapped[int | None] = mapped_column(Integer, nullable=True)
     source: Mapped[str] = mapped_column(String(32), default="manual", nullable=False)
+    synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class WorkoutSession(Base):
+    """A single workout/training session, pushed by the Health Connect
+    companion sync (source="health_connect"). Kept as its own table rather
+    than folded into `SleepActivitySummary` because workouts are discrete,
+    timestamped events (possibly several per day) rather than a daily
+    rollup - but it is part of the same sync/placeholder domain, not a
+    parallel data model.
+
+    `external_id` is the source system's stable record id (e.g. Health
+    Connect's ExerciseSessionRecord.metadata.id) and, together with
+    `user_id`/`source`, is what makes repeated syncs idempotent.
+    """
+
+    __tablename__ = "workout_sessions"
+    __table_args__ = (
+        UniqueConstraint("user_id", "source", "external_id", name="uq_workout_user_source_external_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid_str)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    external_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    activity_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    start_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    end_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    duration_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    calories: Mapped[float | None] = mapped_column(Float, nullable=True)
+    avg_heart_rate: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    distance_meters: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source: Mapped[str] = mapped_column(String(32), default="health_connect", nullable=False)
     synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
