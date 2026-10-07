@@ -201,7 +201,7 @@ $SessionSecret = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 48 |
 # Grok at https://api.x.ai/v1).
 $AssistantApiKey = $env:ASSISTANT_API_KEY
 $AssistantBaseUrl = if ($env:ASSISTANT_BASE_URL) { $env:ASSISTANT_BASE_URL } else { "https://api.groq.com/openai/v1" }
-$AssistantModel = if ($env:ASSISTANT_MODEL) { $env:ASSISTANT_MODEL } else { "llama-3.3-70b-versatile" }
+$AssistantModel = if ($env:ASSISTANT_MODEL) { $env:ASSISTANT_MODEL } else { "openai/gpt-oss-120b" }
 if (-not $AssistantApiKey) {
     Write-Host "`n(ASSISTANT_API_KEY not set in this shell -- meal assistant chat will stay disabled. Set `$env:ASSISTANT_API_KEY before re-running to enable it.)" -ForegroundColor Yellow
 }
