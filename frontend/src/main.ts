@@ -207,32 +207,53 @@ function renderAssistantSection(): string {
 
 const assistantHistory: AssistantChatMessage[] = [];
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 function renderAssistantHistory(): string {
   if (!assistantHistory.length) {
-    return "<p>Diskuter en middag, og be assistenten legge ingrediensene til handlelisten når du har bestemt deg.</p>";
+    return `
+      <p class="assistant-empty">
+        Diskuter en middag, og be assistenten legge ingrediensene til handlelisten når du har bestemt deg.
+      </p>
+    `;
   }
-  return `
-    <ul class="assistant-history">
-      ${assistantHistory
-        .map(
-          (msg) => `
-            <li class="assistant-msg assistant-msg-${msg.role}">
-              <strong>${msg.role === "user" ? "Du" : "Assistent"}:</strong> ${msg.content}
-            </li>
-          `,
-        )
-        .join("")}
-    </ul>
-  `;
+  return assistantHistory
+    .map((msg) => {
+      const isUser = msg.role === "user";
+      return `
+        <div class="chat-row chat-row-${isUser ? "user" : "assistant"}">
+          <div class="chat-bubble chat-bubble-${isUser ? "user" : "assistant"}">
+            <span class="chat-sender">${isUser ? "Du" : "Assistent"}</span>
+            <span class="chat-text">${escapeHtml(msg.content)}</span>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function scrollAssistantHistoryToBottom(): void {
+  const historyEl = document.getElementById("assistant-history");
+  if (!historyEl) return;
+  // Defer until after the browser has laid out the new content, otherwise
+  // scrollHeight can still reflect the previous (shorter) message list.
+  requestAnimationFrame(() => {
+    historyEl.scrollTop = historyEl.scrollHeight;
+  });
 }
 
 function renderAssistantChatUI(): string {
   return `
-    <div id="assistant-history">${renderAssistantHistory()}</div>
-    <form id="assistant-form" class="log-form">
-      <label>
+    <div id="assistant-history" class="assistant-history">${renderAssistantHistory()}</div>
+    <form id="assistant-form" class="log-form assistant-input-row">
+      <label class="assistant-input-label">
         Melding
-        <input name="message" type="text" maxlength="4000" required placeholder="f.eks. jeg tenkte på taco i kveld" />
+        <input name="message" type="text" maxlength="4000" required placeholder="f.eks. jeg tenkte på taco i kveld" autocomplete="off" />
       </label>
       <button type="submit">Send</button>
     </form>
@@ -251,12 +272,14 @@ async function handleAssistantSubmit(event: SubmitEvent): Promise<void> {
   const historyEl = document.getElementById("assistant-history");
   const feedbackEl = document.getElementById("assistant-feedback");
   if (historyEl) historyEl.innerHTML = renderAssistantHistory();
+  scrollAssistantHistoryToBottom();
   form.reset();
 
   try {
     const reply = await api.assistantChat(assistantHistory);
     assistantHistory.push({ role: "assistant", content: reply.reply });
     if (historyEl) historyEl.innerHTML = renderAssistantHistory();
+    scrollAssistantHistoryToBottom();
     if (feedbackEl) {
       if (reply.cleared_list) {
         feedbackEl.textContent = "Handlelisten ble tømt.";
@@ -302,6 +325,7 @@ async function loadAssistantSection(): Promise<void> {
     }
 
     container.innerHTML = renderAssistantChatUI();
+    scrollAssistantHistoryToBottom();
     const form = document.getElementById("assistant-form") as HTMLFormElement | null;
     form?.addEventListener("submit", handleAssistantSubmit);
   } catch (err) {
