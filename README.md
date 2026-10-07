@@ -47,15 +47,16 @@ konfigurert) i stedet for å feile tungt.
    docker compose up --build
    ```
 
-   Dette starter `db` (Postgres 16.4), `backend` (FastAPI på port 8000),
-   `frontend` (statisk PWA via nginx på port 5173) og `ollama` (selvhostet
-   lokal vision-modell for bildechat, se
-   [Måltidsassistent](#måltidsassistent-chat--handleliste) under - laster
-   ned et ca. 900 MB+ image første gang). Databaseskjemaet
+   Dette starter `db` (Postgres 16.4), `backend` (FastAPI på port 8000) og
+   `frontend` (statisk PWA via nginx på port 5173). Databaseskjemaet
    opprettes/oppdateres automatisk ved oppstart av backend-containeren via
    `alembic upgrade head` (kjøres før `uvicorn` starter, se `backend/Dockerfile`).
-   For å slippe å starte/laste ned `ollama` når du ikke trenger lokal
-   bildechat: `docker compose up --build db backend frontend`.
+
+   `ollama` (selvhostet lokal vision-modell for bildechat, se
+   [Måltidsassistent](#måltidsassistent-chat--handleliste) under) starter
+   **ikke** med denne kommandoen - den ligger bak profilen `vision` (som
+   `kitchenowl` ligger bak profilen `kitchenowl`) siden imaget er 900 MB+.
+   Slå den på ved behov: `docker compose --profile vision up -d ollama`.
 
 3. Opprett de to husholdningsbrukerne (kjøres inne i backend-containeren):
 
@@ -220,12 +221,11 @@ adapteren over – uten at bruker manuelt må skrive inn hver vare.
   tatt.
   - **Kjøre bildechat helt lokalt og gratis (Ollama)**: repoet har en
     `ollama`-tjeneste i `docker-compose.yml` (image `ollama/ollama:0.40.0`,
-    port 11434, persistent volum). Den starter med `docker compose up`
-    som alle andre tjenester (merk: dette drar ned et ca. 900 MB+ image
-    første gang `ollama` bygges/startes - se "Kom i gang"-seksjonen for
-    hvordan man evt. utelater den). Første gang:
+    port 11434, persistent volum), bak profilen `vision` (samme mønster
+    som `kitchenowl`-tjenestene), siden imaget er 900 MB+ og de fleste ikke
+    trenger den. Slå den på ved behov, første gang:
     ```powershell
-    docker compose up -d ollama
+    docker compose --profile vision up -d ollama
     docker compose exec ollama ollama pull moondream
     ```
     Sett deretter i `.env` (se `.env.example`) og restart backend:

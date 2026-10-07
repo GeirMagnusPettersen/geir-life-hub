@@ -66,15 +66,18 @@ services:
     ports:
       - "5173:80"
 
-  # Self-hosted Ollama instance providing a free, local vision model for
-  # meal-photo chat (ASSISTANT_VISION_BASE_URL=http://ollama:11434/v1 in
-  # .env), so image-based chat works out of the box with no signup/paid
-  # vision API required. Text chat keeps using ASSISTANT_BASE_URL (Groq by
-  # default) regardless of this service. First run: pull a model with
+  # Optional: self-hosted Ollama instance providing a free, local vision
+  # model for meal-photo chat (ASSISTANT_VISION_BASE_URL=http://ollama:11434/v1
+  # in .env), so image-based chat works with no signup/paid vision API
+  # required. Text chat keeps using ASSISTANT_BASE_URL (Groq by default)
+  # regardless of this service. Only started when the `vision` profile is
+  # enabled (opt-in: `docker compose --profile vision up -d ollama`, see
+  # README), since the image is 900MB+. First run: pull a model with
   # `docker compose exec ollama ollama pull moondream` (see README).
   ollama:
     image: ollama/ollama:0.40.0
     restart: unless-stopped
+    profiles: ["vision"]
     volumes:
       - ollama_data:/root/.ollama
     ports:
