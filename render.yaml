@@ -68,6 +68,15 @@ services:
         sync: false
       - key: KITCHENOWL_HOUSEHOLD_ID
         sync: false
+      # Meal assistant: optional, disabled until ASSISTANT_API_KEY is set.
+      # Paste the real key directly into the Render dashboard -- never
+      # commit it here. Default provider is Groq's free tier.
+      - key: ASSISTANT_API_KEY
+        sync: false
+      - key: ASSISTANT_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: ASSISTANT_MODEL
+        value: llama-3.3-70b-versatile
 
   - type: web
     name: lifehub-frontend
