@@ -440,10 +440,11 @@ function renderShoppingListItems(items: KitchenOwlShoppingListItem[]): string {
       ${items
         .map(
           (item) => `
-            <li>
+            <li class="shopping-item${item.checked ? " shopping-item-checked" : ""}" data-item-row="${item.id}">
               <label>
                 <input type="checkbox" data-item-id="${item.id}" ${item.checked ? "checked" : ""} />
-                ${item.name}
+                <span class="shopping-item-check" aria-hidden="true">✓</span>
+                <span class="shopping-item-name">${escapeHtml(item.name)}</span>
               </label>
             </li>
           `,
@@ -489,11 +490,28 @@ async function loadKitchenOwlSection(): Promise<void> {
     container.querySelectorAll<HTMLInputElement>("input[data-item-id]").forEach((checkbox) => {
       checkbox.addEventListener("change", async () => {
         const itemId = Number(checkbox.dataset.itemId);
+        const row = checkbox.closest<HTMLLIElement>(".shopping-item");
+
+        // Optimistic, immediate visual feedback before the API call resolves.
+        row?.classList.toggle("shopping-item-checked", checkbox.checked);
+        if (checkbox.checked && row) {
+          row.classList.remove("shopping-item-pulse");
+          // Force reflow so the animation restarts if toggled quickly.
+          void row.offsetWidth;
+          row.classList.add("shopping-item-pulse");
+          row.addEventListener(
+            "animationend",
+            () => row.classList.remove("shopping-item-pulse"),
+            { once: true },
+          );
+        }
+
         try {
           await api.kitchenowlSetItemChecked(itemId, checkbox.checked);
         } catch (err) {
           console.error(err);
           checkbox.checked = !checkbox.checked;
+          row?.classList.toggle("shopping-item-checked", checkbox.checked);
         }
       });
     });
