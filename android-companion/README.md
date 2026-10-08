@@ -161,6 +161,46 @@ the app no longer depends solely on the user remembering to tap "Sync now":
   retry/backoff strategy beyond "the next periodic run will try again" — the
   backend contract and `SyncManager`'s own error handling are unchanged.
 
+## Test fixtures (synthetic Health Connect sleep data)
+
+`app/src/test/java/com/geirlifehub/companion/healthconnect/SleepFixtures.kt`
+provides two JVM-unit-test fixtures (`sleepSessionMar19_2022()` /
+`sleepSessionFeb19_2022()`, plus matching `HeartRateRecord`s) built directly
+from Health Connect's own schema (`SleepSessionRecord` +
+`SleepSessionRecord.Stage`, `HeartRateRecord`) for use in adapter/mapping
+tests that want realistic-looking input data.
+
+**Provenance:** the *envelope* of each night (bedtime, wake time, total sleep
+duration — 8h43m and 10h34m respectively) is inspired by real sleep sessions
+read from a Garmin Connect account for 2022. The real **per-stage breakdown
+and heart rate** for that period was not usable as a reference: one night had
+almost the entire duration recorded as "Deep" with REM missing, the other had
+Deep wrongly equal to the total with Light/REM/Awake all missing, and both
+had implausible resting heart rates (130–141 bpm). A third week of real data
+(15–21 May 2022) was excluded entirely because identical values repeated
+across consecutive days strongly suggest placeholder/manually-entered data.
+Because of that, the stage proportions and heart-rate samples in the
+fixtures are **synthetic**: internally consistent (stage minutes sum exactly
+to the real-inspired total duration) and physiologically realistic
+(~50–55% Light, ~18–23% Deep, ~22–26% REM, a few % Awake; resting HR 45–65
+bpm), not copied from the unreliable real per-stage/HR readings. This is
+documented in the file's own KDoc as well.
+
+`SleepFixturesTest.kt` is a plain JVM JUnit 4 test (no emulator/Robolectric
+needed) that verifies this: stage minutes sum to the session duration, stage
+proportions fall within realistic bounds, heart-rate samples stay in the
+45–65 bpm range, and the suspected-placeholder May 2022 week is never used.
+Run it with:
+
+```bash
+./gradlew testDebugUnitTest --tests "com.geirlifehub.companion.healthconnect.SleepFixturesTest"
+```
+
+**Verified:** built and run end-to-end in this environment against the real
+`connect-client:1.1.0-alpha07` AAR (JDK 17 + Android SDK API 34, no Android
+Studio) — all 6 test cases pass, and `testDebugUnitTest` for the whole module
+is green.
+
 ## Backend contract
 
 This app only talks to two existing/extended backend endpoints
