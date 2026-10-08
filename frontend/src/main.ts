@@ -425,6 +425,11 @@ function buildLineChartSvg(series: ChartSeries[], unit: string): string {
 }
 
 const SLEEP_TREND_PERIODS = [7, 30, 90] as const;
+// "Alt" covers ~20 years, so historical/imported data (e.g. older Health
+// Connect syncs or AI-model data imports) is reachable without requiring a
+// full custom date-range picker. See PROJECT_BRIEF.md section on Health
+// Connect sync - imported summaries can predate the recent-trend defaults.
+const SLEEP_TREND_ALL_DAYS = 7300;
 let sleepTrendDays: number = 30;
 
 function renderSleepTrendSection(): string {
@@ -441,6 +446,9 @@ function renderSleepTrendSection(): string {
               d === sleepTrendDays ? " active" : ""
             }">${d} dager</button>`,
         ).join("")}
+        <button type="button" data-days="${SLEEP_TREND_ALL_DAYS}" class="period-btn${
+          sleepTrendDays === SLEEP_TREND_ALL_DAYS ? " active" : ""
+        }">Alt</button>
       </div>
       <div class="chart-container">
         <h3>Søvnvarighet</h3>
