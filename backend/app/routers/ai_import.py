@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, Depends
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -13,10 +14,12 @@ from app.models import CoffeeEntry, FluidEntry, HealthObservation, SleepActivity
 from app.routers.kitchenowl import get_kitchenowl_client
 from app.schemas import (
     AiImportDomain,
+    AiImportDomainSchema,
     AiImportItem,
     AiImportItemResult,
     AiImportRequest,
     AiImportResult,
+    AiImportSchemaResponse,
     AiImportShoppingListItem,
     CoffeeEntryCreate,
     FluidEntryCreate,
@@ -32,6 +35,80 @@ _MAX_SOURCE_MODEL_LEN = 20  # keeps "ai_import:" + tag within the 32-char source
 
 def _source_tag(source_model: str) -> str:
     return f"ai_import:{source_model.strip().lower()[:_MAX_SOURCE_MODEL_LEN]}"
+
+
+# --- Self-describing schema (GET /import/ai/schema) ------------------------
+#
+# Every `json_schema` entry below is generated via `model_json_schema()`
+# straight off the *same* Create model `_import_item()` validates against -
+# never hand-duplicated - so this endpoint can't drift from what POST
+# /import/ai actually accepts, even as domains/fields change over time.
+
+_DOMAIN_MODELS: dict[AiImportDomain, type[BaseModel]] = {
+    AiImportDomain.weight: WeightEntryCreate,
+    AiImportDomain.fluid: FluidEntryCreate,
+    AiImportDomain.coffee: CoffeeEntryCreate,
+    AiImportDomain.health_observation: HealthObservationCreate,
+    AiImportDomain.sleep_activity: SleepActivityCreate,
+    AiImportDomain.shopping_list_item: AiImportShoppingListItem,
+}
+
+_DOMAIN_EXAMPLES: dict[AiImportDomain, dict[str, Any]] = {
+    AiImportDomain.weight: {"weight_kg": 81.5, "note": "from a bathroom scale photo"},
+    AiImportDomain.fluid: {"amount_ml": 500, "fluid_type": "water"},
+    AiImportDomain.coffee: {"cups": 2},
+    AiImportDomain.health_observation: {
+        "category": "headache",
+        "description": "Mild headache after lunch",
+        "severity": 2,
+    },
+    AiImportDomain.sleep_activity: {
+        "summary_date": "2025-01-01",
+        "sleep_minutes": 420,
+        "steps": 8000,
+        "resting_heart_rate": 58,
+        "avg_heart_rate": 70,
+    },
+    AiImportDomain.shopping_list_item: {"name": "Melk", "description": "lettmelk, 1L"},
+}
+
+_DOMAIN_NOTES: dict[AiImportDomain, str] = {
+    AiImportDomain.sleep_activity: (
+        "Upserted per summary_date: a second item for a date already present "
+        "overwrites that day's row instead of creating a duplicate (same "
+        "semantics as the Health Connect sync)."
+    ),
+    AiImportDomain.shopping_list_item: (
+        "Forwarded to the household's configured KitchenOwl instance rather "
+        "than stored locally; returns a per-item error if KitchenOwl isn't "
+        "configured."
+    ),
+}
+
+_EXCLUDED_GUIDANCE: dict[str, str] = {
+    "food_meal_calorie_tracking": (
+        "There is intentionally no domain here for food, meals, calories, or "
+        "macro/nutrition tracking. VG Vektklubb remains the household's "
+        "authoritative diet and calorie tracker - Life Hub must not become a "
+        "worse copy of Vektklubb (diet/calories) or Garmin (fitness). Do not "
+        "force food or calorie data into any of the domains below. If a user "
+        "explicitly wants a qualitative, free-text note about diet or a "
+        "related symptom recorded (not structured nutrition data), use the "
+        "`health_observation` domain as a fallback, e.g. "
+        '{"category": "kosthold", "description": "..."}.'
+    ),
+}
+
+
+def _build_domain_schema(domain: AiImportDomain) -> AiImportDomainSchema:
+    model = _DOMAIN_MODELS[domain]
+    return AiImportDomainSchema(
+        domain=domain,
+        model=model.__name__,
+        json_schema=model.model_json_schema(),
+        example=_DOMAIN_EXAMPLES[domain],
+        notes=_DOMAIN_NOTES.get(domain),
+    )
 
 
 def _import_item(
@@ -146,6 +223,36 @@ def _import_item(
         return AiImportItemResult(index=index, domain=item.domain, status="error", detail=str(exc))
 
 
+@router.get("/ai/schema", response_model=AiImportSchemaResponse)
+def import_ai_schema() -> AiImportSchemaResponse:
+    """Self-describing, machine-discoverable contract for POST /import/ai.
+
+    Intentionally unauthenticated: the point is that an *external* AI
+    assistant (e.g. Microsoft Copilot web chat, ChatGPT) - which may not
+    have a Life Hub session - can fetch this URL directly (or have it
+    pasted into its chat) and derive the exact request shape on its own,
+    without a human writing/relaying a hand-authored spec. Every
+    `json_schema` below comes straight from `model_json_schema()` on the
+    real Pydantic model each domain validates against, so it can never
+    drift from what POST /import/ai actually accepts.
+    """
+    return AiImportSchemaResponse(
+        endpoint="POST /import/ai",
+        source_model_convention=(
+            "`source_model` is a free-text tag identifying the originating AI "
+            f'assistant (e.g. "copilot", "chatgpt"), 1-{_MAX_SOURCE_MODEL_LEN} '
+            "characters. It is lowercased and truncated to "
+            f"{_MAX_SOURCE_MODEL_LEN} characters, then stored on every row "
+            'created by this import as source="ai_import:<source_model>" for '
+            "traceability back to the assistant that produced the data."
+        ),
+        request_envelope=AiImportRequest.model_json_schema(),
+        result_envelope=AiImportResult.model_json_schema(),
+        domains=[_build_domain_schema(domain) for domain in AiImportDomain],
+        excluded=_EXCLUDED_GUIDANCE,
+    )
+
+
 @router.post("/ai", response_model=AiImportResult)
 def import_ai_data(
     payload: AiImportRequest,
@@ -159,6 +266,12 @@ def import_ai_data(
     corrupts the household's data - it's just recorded as an error and the
     rest of the batch still goes through (partial-success, like
     POST /weight/import).
+
+    Don't know the exact shape to send? An external AI assistant should
+    fetch GET /import/ai/schema (unauthenticated) first - it returns the
+    exact JSON Schema for every `AiImportDomain`, generated live from this
+    API's own Pydantic models, plus guidance on what's intentionally out of
+    scope here (e.g. food/calorie data - see Vektklubb instead).
     """
     source = _source_tag(payload.source_model)
     results: list[AiImportItemResult] = []
