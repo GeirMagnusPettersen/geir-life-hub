@@ -20,14 +20,17 @@ This is the companion app for GitHub issue
   boundary (`SyncManager.runSync()`). A failed sync (no network, revoked
   Health Connect permission, backend error, ...) is reported in the UI as
   plain text and never crashes the app or affects anything else.
+- ✅ Syncs automatically in the background on a user-configurable interval
+  (via `WorkManager`/`PeriodicWorkRequest`), in addition to the manual
+  "Sync now" button — see "Periodic background sync" below.
 - ❌ Does **not** talk to the Garmin Connect API or scrape Vektklubb. It only
   reads what the user already exposed via Health Connect.
 - ❌ Does **not** introduce a new/parallel data model. It maps Health Connect
   records onto the backend's existing `SleepActivitySummary` and (new, but
   backend-owned) `WorkoutSession` models.
-- ❌ No background scheduling (WorkManager, periodic sync, retry/backoff) in
-  this first iteration — only a manual "Sync now" button. The brief
-  explicitly says retry/backoff isn't required yet.
+- ❌ No push notifications and no new retry/backoff strategy: a failed
+  scheduled sync is simply reported as "last sync failed" status in the UI —
+  the next periodic run is the natural retry.
 
 ## How authentication works
 
@@ -65,6 +68,9 @@ android-companion/
 │       │   ├── healthconnect/HealthConnectRepository.kt  # read-only HC wrapper
 │       │   ├── sync/BackendApiClient.kt       # OkHttp calls to the backend
 │       │   ├── sync/SyncManager.kt            # orchestrates read → map → push
+│       │   ├── sync/SyncPreferences.kt        # persisted interval + last-sync status
+│       │   ├── sync/SyncWorker.kt             # WorkManager CoroutineWorker, runs SyncManager
+│       │   ├── sync/SyncScheduler.kt          # (re)schedules the periodic WorkManager job
 │       │   └── ui/MainActivity.kt             # single-screen UI
 │       └── res/                               # layout, strings, icons
 ├── build.gradle.kts / settings.gradle.kts / gradle.properties
@@ -128,6 +134,32 @@ is machine-specific.
    status line reports how many sleep entries and workouts were synced, or a
    plain-language error if something went wrong — a failed sync never
    crashes the app.
+4. Pick a **synk-intervall** (1/3/6/12/24 timer) from the dropdown. Once
+   logged in, the app schedules a background sync job at that interval and
+   displays the last automatic-or-manual sync's time and status below it.
+
+## Periodic background sync
+
+Starting with [issue #14](https://github.com/GeirMagnusPettersen/geir-life-hub/issues/14),
+the app no longer depends solely on the user remembering to tap "Sync now":
+
+- A `WorkManager` `PeriodicWorkRequest` (`SyncScheduler` + `SyncWorker`) runs
+  `SyncManager.runSync()` in the background on the interval chosen in the UI
+  (1, 3, 6, 12 or 24 hours — WorkManager's own floor is 15 minutes, but the
+  UI only offers whole-hour choices down to 1 hour).
+- The job only runs when the device has network connectivity
+  (`Constraints(NetworkType.CONNECTED)`), and only while the user is logged
+  in; it is (re)scheduled automatically after login and whenever the
+  interval selection changes, using `enqueueUniquePeriodicWork(...,
+  ExistingPeriodicWorkPolicy.UPDATE, ...)` so changing the interval replaces
+  the existing job instead of running two in parallel.
+- The chosen interval and the outcome (success/failure + message/timestamp)
+  of the most recent sync — scheduled or manual — are persisted in
+  `SyncPreferences` (plain `SharedPreferences`) and shown on the main screen.
+- A failed background sync is recorded as status only; it never throws,
+  crashes, or triggers a push notification. There is still no new
+  retry/backoff strategy beyond "the next periodic run will try again" — the
+  backend contract and `SyncManager`'s own error handling are unchanged.
 
 ## Backend contract
 

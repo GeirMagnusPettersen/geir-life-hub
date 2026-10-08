@@ -61,5 +61,24 @@
             android:layout_marginTop="24dp"
             android:text="@string/status_not_logged_in" />
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="@string/label_sync_interval" />
+
+        <Spinner
+            android:id="@+id/syncIntervalSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:entries="@array/sync_interval_labels" />
+
+        <TextView
+            android:id="@+id/lastSyncText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/status_last_sync_never" />
+
     </LinearLayout>
 </ScrollView>

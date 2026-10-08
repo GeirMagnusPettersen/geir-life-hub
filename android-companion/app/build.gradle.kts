@@ -57,6 +57,13 @@ dependencies {
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
+    // Periodic background sync (issue #14): schedules SyncWorker on a
+    // user-configurable interval instead of relying solely on the manual
+    // "Sync now" button.
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+
     testImplementation("junit:junit:4.13.2")
+    testImplementation("androidx.work:work-testing:2.9.1")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }
