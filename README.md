@@ -444,6 +444,48 @@ brukeren) kan lime strukturert JSON inn i:
   JSON-listen med elementer, samt en resultatliste per element etter
   innsending.
 
+#### Selvbetjent kontrakt-oppdagelse (`GET /import/ai/schema`)
+
+Beskrivelsen over er ment for mennesker. For at en **annen AI-assistent**
+(f.eks. Microsoft Copilot eller ChatGPT, som allerede sitter på brukerens
+egen samtalehistorikk om f.eks. kosthold eller søvn) skal kunne finne ut av
+riktig format *selv* – uten at et menneske må lime inn en håndskrevet
+spesifikasjon i den andre chatten – finnes det et eget, ikke-autentisert
+oppdagelsesendepunkt:
+
+- `GET /import/ai/schema` returnerer en maskinlesbar `AiImportSchemaResponse`
+  med, for hver støttede `domain`, et komplett JSON Schema
+  (`model_json_schema()` fra den faktiske Pydantic-valideringsmodellen –
+  genereres live fra koden, aldri håndskrevet, så det kan ikke drifte vekk
+  fra de reelle valideringsreglene), et eksempel-objekt, og en kort
+  forklarende tekst.
+- Svaret inkluderer også `request_envelope`/`result_envelope` (den ytre
+  `{"source_model": ..., "items": [...]}`-formen og
+  `{"imported": ..., "skipped": ..., "results": [...]}`-svarformen),
+  `source_model_convention` (hvordan `source_model` blir til
+  `source="ai_import:<source_model>"`), og et `excluded`-felt som eksplisitt
+  forklarer at mat/måltider/kalorier **ikke** skal importeres her – Vektklubb
+  er og blir den autoritative kosthold-/kalorisporeren (se
+  [«Full kosthold-/kalorisporing»](#omfang-i-denne-omgangen) under) – og at
+  `health_observation` kun bør brukes som et fritekst-notat dersom brukeren
+  eksplisitt ber om å få logget en kvalitativ kosthold-/symptomobservasjon.
+- `POST /import/ai` sin dokumentasjon (synlig i OpenAPI/Swagger på
+  `/docs`) refererer til `GET /import/ai/schema`, slik at en AI-assistent som
+  kan hente en URL (eller hvis brukeren limer inn OpenAPI/schema-JSON-en i
+  chatten) kan slå opp kontrakten selv.
+- Noen AI-nettleseverktøy (f.eks. Microsoft Copilots innebygde
+  nettlesingsverktøy) klarer bare å lese sider som serveres som `text/html`,
+  ikke rå `application/json`. For disse finnes `GET /import/ai/schema.html`
+  – nøyaktig samme data som `GET /import/ai/schema`, bare pakket inn i en
+  minimal HTML-side (`<pre>{json}</pre>`, ingen styling) slik at en
+  nettlesende AI-klient faktisk kan hente og lese innholdet.
+
+Eksempel på hvordan en bruker kan be sin andre AI-assistent bruke dette:
+
+> «Copilot, kan du gå til `https://life-hub.example.com/import/ai/schema`,
+> lese JSON-schemaet for `sleep_activity`, og formatere søvndataene mine fra
+> forrige uke i det formatet? Så poster jeg det selv til `/import/ai`.»
+
 ## Lokal utvikling
 
 ### Backend

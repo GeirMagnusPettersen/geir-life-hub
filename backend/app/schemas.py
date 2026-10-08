@@ -354,3 +354,36 @@ class AiImportResult(BaseModel):
     imported: int
     skipped: int
     results: list[AiImportItemResult]
+
+
+# --- AI assistant data import: self-describing contract -------------------
+#
+# Lets an *external* AI assistant (not just a human pasting JSON) discover
+# the exact shape POST /import/ai expects by fetching GET /import/ai/schema
+# directly - no human-authored spec needs to be relayed into its chat. Every
+# `json_schema` field below is generated from the real Pydantic model via
+# `model_json_schema()`, never hand-duplicated, so this can't silently drift
+# from what the endpoint actually validates.
+
+
+class AiImportDomainSchema(BaseModel):
+    """Machine-readable description of one `AiImportDomain` value."""
+
+    domain: AiImportDomain
+    model: str
+    json_schema: dict[str, Any]
+    example: dict[str, Any]
+    notes: str | None = None
+
+
+class AiImportSchemaResponse(BaseModel):
+    """Self-describing contract for POST /import/ai, meant to be fetched
+    directly by an external AI assistant (e.g. via
+    GET /import/ai/schema) so it can format a correct request on its own."""
+
+    endpoint: str
+    source_model_convention: str
+    request_envelope: dict[str, Any]
+    result_envelope: dict[str, Any]
+    domains: list[AiImportDomainSchema]
+    excluded: dict[str, str]
