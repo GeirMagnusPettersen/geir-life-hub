@@ -67,6 +67,33 @@ def test_schema_response_excludes_food_and_points_to_vektklubb(client):
     assert "health_observation" in excluded_text
 
 
+def test_schema_html_endpoint_is_unauthenticated_and_html(client):
+    """Some AI web-browsing tools only render `text/html`, not raw
+    `application/json`. GET /import/ai/schema.html must be reachable
+    without auth, just like the JSON endpoint."""
+    response = client.get("/import/ai/schema.html")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+
+
+def test_schema_html_endpoint_matches_json_endpoint_payload(client):
+    """The HTML wrapper must carry the *exact same* data as GET
+    /import/ai/schema, just serialized inside a page - no drift, no
+    hand-duplicated content."""
+    import json
+
+    json_body = client.get("/import/ai/schema").json()
+    html_body = client.get("/import/ai/schema.html").text
+    assert "<pre>" in html_body
+    # Extract the JSON blob between the <pre> tags and parse it back.
+    import html as html_module
+
+    start = html_body.index("<pre>") + len("<pre>")
+    end = html_body.index("</pre>")
+    embedded = html_module.unescape(html_body[start:end])
+    assert json.loads(embedded) == json_body
+
+
 def test_post_import_ai_docs_reference_schema_endpoint():
     """The POST endpoint's own OpenAPI docstring must point readers (human
     or AI) at GET /import/ai/schema so the contract is discoverable from

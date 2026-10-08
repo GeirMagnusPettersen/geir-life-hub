@@ -473,6 +473,12 @@ oppdagelsesendepunkt:
   `/docs`) refererer til `GET /import/ai/schema`, slik at en AI-assistent som
   kan hente en URL (eller hvis brukeren limer inn OpenAPI/schema-JSON-en i
   chatten) kan slå opp kontrakten selv.
+- Noen AI-nettleseverktøy (f.eks. Microsoft Copilots innebygde
+  nettlesingsverktøy) klarer bare å lese sider som serveres som `text/html`,
+  ikke rå `application/json`. For disse finnes `GET /import/ai/schema.html`
+  – nøyaktig samme data som `GET /import/ai/schema`, bare pakket inn i en
+  minimal HTML-side (`<pre>{json}</pre>`, ingen styling) slik at en
+  nettlesende AI-klient faktisk kan hente og lese innholdet.
 
 Eksempel på hvordan en bruker kan be sin andre AI-assistent bruke dette:
 

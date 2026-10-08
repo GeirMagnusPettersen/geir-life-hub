@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import html
+import json
 from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 
@@ -223,19 +226,7 @@ def _import_item(
         return AiImportItemResult(index=index, domain=item.domain, status="error", detail=str(exc))
 
 
-@router.get("/ai/schema", response_model=AiImportSchemaResponse)
-def import_ai_schema() -> AiImportSchemaResponse:
-    """Self-describing, machine-discoverable contract for POST /import/ai.
-
-    Intentionally unauthenticated: the point is that an *external* AI
-    assistant (e.g. Microsoft Copilot web chat, ChatGPT) - which may not
-    have a Life Hub session - can fetch this URL directly (or have it
-    pasted into its chat) and derive the exact request shape on its own,
-    without a human writing/relaying a hand-authored spec. Every
-    `json_schema` below comes straight from `model_json_schema()` on the
-    real Pydantic model each domain validates against, so it can never
-    drift from what POST /import/ai actually accepts.
-    """
+def _build_schema_response() -> AiImportSchemaResponse:
     return AiImportSchemaResponse(
         endpoint="POST /import/ai",
         source_model_convention=(
@@ -251,6 +242,43 @@ def import_ai_schema() -> AiImportSchemaResponse:
         domains=[_build_domain_schema(domain) for domain in AiImportDomain],
         excluded=_EXCLUDED_GUIDANCE,
     )
+
+
+@router.get("/ai/schema", response_model=AiImportSchemaResponse)
+def import_ai_schema() -> AiImportSchemaResponse:
+    """Self-describing, machine-discoverable contract for POST /import/ai.
+
+    Intentionally unauthenticated: the point is that an *external* AI
+    assistant (e.g. Microsoft Copilot web chat, ChatGPT) - which may not
+    have a Life Hub session - can fetch this URL directly (or have it
+    pasted into its chat) and derive the exact request shape on its own,
+    without a human writing/relaying a hand-authored spec. Every
+    `json_schema` below comes straight from `model_json_schema()` on the
+    real Pydantic model each domain validates against, so it can never
+    drift from what POST /import/ai actually accepts.
+    """
+    return _build_schema_response()
+
+
+@router.get("/ai/schema.html", response_class=HTMLResponse, include_in_schema=False)
+def import_ai_schema_html() -> HTMLResponse:
+    """HTML wrapper around the exact same contract as GET /import/ai/schema.
+
+    Some AI web-browsing tools (e.g. Microsoft Copilot's browser tool) only
+    render pages served as `text/html`, not raw `application/json`. This
+    endpoint returns the identical data as GET /import/ai/schema - no
+    reformatting, no hand-duplication - just that same payload serialized
+    and wrapped in a minimal HTML page so such a client can read it. There
+    is no styling here on purpose; the content is the point.
+    """
+    payload = _build_schema_response().model_dump(mode="json")
+    body = html.escape(json.dumps(payload, indent=2))
+    page = (
+        "<!doctype html><html><head><meta charset=\"utf-8\">"
+        "<title>POST /import/ai schema</title></head>"
+        f"<body><pre>{body}</pre></body></html>"
+    )
+    return HTMLResponse(content=page)
 
 
 @router.post("/ai", response_model=AiImportResult)
@@ -271,7 +299,10 @@ def import_ai_data(
     fetch GET /import/ai/schema (unauthenticated) first - it returns the
     exact JSON Schema for every `AiImportDomain`, generated live from this
     API's own Pydantic models, plus guidance on what's intentionally out of
-    scope here (e.g. food/calorie data - see Vektklubb instead).
+    scope here (e.g. food/calorie data - see Vektklubb instead). If your
+    browsing tool can only render HTML pages, GET /import/ai/schema.html
+    returns the identical payload wrapped in a plain HTML page instead of
+    raw JSON.
     """
     source = _source_tag(payload.source_model)
     results: list[AiImportItemResult] = []
