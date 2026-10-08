@@ -13,4 +13,9 @@
     <string name="status_sync_failed">Synk feilet: %1$s (appen er ikke påvirket, prøv igjen senere).</string>
     <string name="status_permissions_missing">Health Connect-tilgang mangler. Trykk \"Be om tilgang\".</string>
     <string name="status_health_connect_unavailable">Health Connect er ikke installert eller støttet på denne enheten.</string>
+    <string name="label_sync_interval">Synk-intervall (bakgrunn)</string>
+    <string name="status_last_sync_never">Ingen automatisk eller manuell synk er kjørt ennå.</string>
+    <string name="status_last_sync">Sist synk (%1$s): %2$s</string>
+    <string name="status_last_sync_success">OK</string>
+    <string name="status_last_sync_failure">Feilet</string>
 </resources>

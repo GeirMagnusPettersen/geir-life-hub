@@ -1,6 +1,8 @@
 package com.geirlifehub.companion.ui
 
 import android.os.Bundle
+import android.view.View
+import android.widget.AdapterView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.lifecycleScope
@@ -10,22 +12,34 @@ import com.geirlifehub.companion.auth.SessionManager
 import com.geirlifehub.companion.databinding.ActivityMainBinding
 import com.geirlifehub.companion.healthconnect.HealthConnectRepository
 import com.geirlifehub.companion.sync.SyncManager
+import com.geirlifehub.companion.sync.SyncPreferences
 import com.geirlifehub.companion.sync.SyncResult
+import com.geirlifehub.companion.sync.SyncScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.DateFormat
+import java.util.Date
 
 /**
  * Single-screen companion UI: connect an account, grant Health Connect
- * access, and trigger a manual sync. There is intentionally no background
- * scheduling in this first iteration - the brief only asks for a working,
- * isolated sync path that cannot take down the rest of the app.
+ * access, trigger a manual sync, and configure/observe periodic background
+ * sync (issue #14). Background sync delegates to the same [SyncManager]
+ * used by the manual "Synkroniser nå" button via [com.geirlifehub.companion.sync.SyncWorker],
+ * so this screen only needs to manage the interval preference and the
+ * WorkManager schedule, plus display the last sync outcome.
  */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var sessionManager: SessionManager
     private lateinit var healthConnectRepository: HealthConnectRepository
+    private lateinit var syncPreferences: SyncPreferences
+
+    /** Hour values aligned by index with R.array.sync_interval_labels. */
+    private val intervalHoursOptions by lazy {
+        resources.getIntArray(R.array.sync_interval_hours_values)
+    }
 
     private val requestPermissionsLauncher = registerForActivityResult(
         PermissionController.createRequestPermissionResultContract()
@@ -44,13 +58,55 @@ class MainActivity : AppCompatActivity() {
 
         sessionManager = SessionManager(applicationContext)
         healthConnectRepository = HealthConnectRepository(applicationContext)
+        syncPreferences = SyncPreferences(applicationContext)
 
         binding.backendUrlInput.setText(sessionManager.backendUrl.ifBlank { binding.backendUrlInput.text.toString() })
         updateStatusForCurrentSession()
+        setUpSyncIntervalSpinner()
+        updateLastSyncText()
 
         binding.loginButton.setOnClickListener { onLoginClicked() }
         binding.requestPermissionsButton.setOnClickListener { onRequestPermissionsClicked() }
         binding.syncButton.setOnClickListener { onSyncClicked() }
+
+        // Only schedule background sync for users who are already logged in;
+        // SyncWorker itself also no-ops safely if credentials are missing.
+        if (sessionManager.isLoggedIn) {
+            SyncScheduler.schedule(applicationContext, syncPreferences.intervalHours)
+        }
+    }
+
+    private fun setUpSyncIntervalSpinner() {
+        val selectedIndex = intervalHoursOptions.indexOf(syncPreferences.intervalHours.toInt())
+            .takeIf { it >= 0 } ?: 0
+        binding.syncIntervalSpinner.setSelection(selectedIndex, false)
+
+        binding.syncIntervalSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val hours = intervalHoursOptions[position].toLong()
+                if (hours == syncPreferences.intervalHours) return
+                syncPreferences.intervalHours = hours
+                SyncScheduler.schedule(applicationContext, syncPreferences.intervalHours)
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
+    }
+
+    private fun updateLastSyncText() {
+        val timestamp = syncPreferences.lastSyncTimestamp
+        val success = syncPreferences.lastSyncSuccess
+        binding.lastSyncText.text = if (timestamp == null || success == null) {
+            getString(R.string.status_last_sync_never)
+        } else {
+            val formattedTime = DateFormat.getDateTimeInstance().format(Date(timestamp))
+            val statusLabel = if (success) {
+                getString(R.string.status_last_sync_success)
+            } else {
+                getString(R.string.status_last_sync_failure)
+            }
+            getString(R.string.status_last_sync, statusLabel, formattedTime)
+        }
     }
 
     private fun updateStatusForCurrentSession() {
@@ -77,7 +133,12 @@ class MainActivity : AppCompatActivity() {
                 sessionManager.login(username, password)
             }
             binding.statusText.text = when (outcome) {
-                is LoginOutcome.Success -> getString(R.string.status_logged_in, outcome.username)
+                is LoginOutcome.Success -> {
+                    // Now that we have credentials, (re)schedule background
+                    // sync at the currently configured interval.
+                    SyncScheduler.schedule(applicationContext, syncPreferences.intervalHours)
+                    getString(R.string.status_logged_in, outcome.username)
+                }
                 is LoginOutcome.Failure -> getString(R.string.status_sync_failed, outcome.message)
             }
         }
@@ -115,6 +176,16 @@ class MainActivity : AppCompatActivity() {
                 is SyncResult.Failure ->
                     getString(R.string.status_sync_failed, result.message)
             }
+            val successMessage = when (result) {
+                is SyncResult.Success -> binding.statusText.text.toString()
+                is SyncResult.Failure -> result.message
+            }
+            syncPreferences.recordSyncResult(
+                timestampMillis = System.currentTimeMillis(),
+                success = result is SyncResult.Success,
+                message = successMessage,
+            )
+            updateLastSyncText()
         }
     }
 }

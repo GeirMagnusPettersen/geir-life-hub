@@ -1,0 +1,19 @@
+<resources>
+    <!-- Options shown in the sync-interval Spinner. Index-aligned with
+         sync_interval_hours_values below. -->
+    <string-array name="sync_interval_labels">
+        <item>1 time</item>
+        <item>3 timer</item>
+        <item>6 timer</item>
+        <item>12 timer</item>
+        <item>24 timer</item>
+    </string-array>
+
+    <integer-array name="sync_interval_hours_values">
+        <item>1</item>
+        <item>3</item>
+        <item>6</item>
+        <item>12</item>
+        <item>24</item>
+    </integer-array>
+</resources>
